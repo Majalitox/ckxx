@@ -16,6 +16,17 @@ export const DEFAULTS = {
   npcLetters: true,
   mobScaling: true,
   deathXpLoss: 0.05,
+  // Reinos y asentamientos
+  settlementGen: true,
+  settlementSpacing: 350,
+  capitalSpacing: 900,
+  maxSettlements: 40,
+  raidChance: 0.1,
+  // Justicia (data/laws.js lee estos mismos valores)
+  humiliationSeconds: 60,
+  jailMinutesSerious: 15,
+  jailMinutesMurder: 30,
+  decaySeconds: 120,
 };
 
 export const SETTING_LABELS = {
@@ -33,6 +44,15 @@ export const SETTING_LABELS = {
   npcLetters: 'Los NPCs envían cartas',
   mobScaling: 'Monstruos más fuertes lejos del inicio',
   deathXpLoss: 'Pérdida de XP al morir (0-1)',
+  settlementGen: 'Generar pueblos y reinos al explorar',
+  settlementSpacing: 'Distancia mínima entre asentamientos',
+  capitalSpacing: 'Distancia mínima entre capitales',
+  maxSettlements: 'Máximo de asentamientos generados',
+  raidChance: 'Probabilidad de asalto nocturno (0-1)',
+  humiliationSeconds: 'Segundos de castigo público (cepo)',
+  jailMinutesSerious: 'Minutos de prisión por delito grave',
+  jailMinutesMurder: 'Minutos de prisión por asesinato',
+  decaySeconds: 'Segundos para perder una estrella de búsqueda',
 };
 
 export function cfg(key) {

@@ -2,7 +2,7 @@
 // Conecta todos los sistemas a los eventos del juego y arranca los bucles periódicos.
 import { world, system } from '@minecraft/server';
 import { getP, W, flush, savePlayer, forgetPlayer, wDirty } from './core/store.js';
-import { msg } from './core/progression.js';
+import { msg, progressHooks } from './core/progression.js';
 import { DRINKS } from './data/items.js';
 import { BOSSES, MOBS } from './data/mobs.js';
 import { beginBirth, familyUpkeep } from './systems/birth.js';
@@ -24,6 +24,10 @@ import * as bosses from './systems/bosses.js';
 import { townTick } from './systems/town.js';
 import { openJournal } from './systems/menu.js';
 import { onScriptEvent } from './systems/admin.js';
+import * as justice from './systems/justice.js';
+import * as crime from './systems/crime.js';
+import * as settlements from './systems/settlements.js';
+import * as social from './systems/social.js';
 import { guarded, info } from './util/ui.js';
 import { heal, effect, heldItem, setHeldItem } from './util/compat.js';
 import { getP as dataOf } from './core/store.js';
@@ -36,12 +40,14 @@ const progress = quests.progress;
 Object.assign(npc.hooks, {
   guildDesk: (p) => guild.guildDesk(p),
   guildMaster: (p) => guild.guildMaster(p),
-  shop: (p) => shopMenu(p),
+  shop: (p, ctx) => shopMenu(p, ctx),
   forge: (p, fromNpc) => forgeMenu(p, fromNpc),
   shadow: (p) => guild.shadowMenu(p),
   familyQuest: (p, ident) => quests.familyQuestMenu(p, ident),
   deliver: (p, role) => quests.deliver(p, role),
   questProgress: progress,
+  pardon: (p) => justice.pardon(p),
+  isRestricted: (p) => justice.isRestricted(p),
 });
 Object.assign(magic.hooks, { questProgress: progress, spawnSummon });
 Object.assign(combat.hooks, {
@@ -52,7 +58,22 @@ Object.assign(combat.hooks, {
 });
 hobbies.hooks.questProgress = progress;
 explore.hooks.questProgress = progress;
-dungeons.hooks.questProgress = progress;
+dungeons.hooks.questProgress = (p, type, key, n, extra) => {
+  progress(p, type, key, n, extra);
+  if (type === 'dungeon') try { social.deedForDungeon(p, extra); } catch (e) { console.warn('[Aetheria] deed: ' + e); }
+};
+bosses.hooks.onDefeated = (p, bossId) => social.deedForBoss(p, bossId);
+progressHooks.onGuildRank = (p, rank) => social.deedForGuildRank(p, rank);
+
+// Justicia: castigos y fama alimentan las hazañas; la nobleza y los héroes reciben otro trato.
+Object.assign(crime.hooks, {
+  questProgress: progress,
+  onPunished: (p, kind, crimes) => social.deedForPunishment(p, kind, crimes),
+  onCrime: (p, type, info) => social.deedForCrime(p, type, info),
+  classRank: (p) => { const d = getP(p); return d ? social.playerClass(d).rank : 0; },
+  fame: (p, realmId) => { const d = getP(p); return d ? social.fame(d, realmId) : 0; },
+});
+settlements.hooks.onRaidDefended = (p, s) => social.deedForRaid(p, s);
 
 /* ------------------------------ Eventos ------------------------------ */
 
@@ -64,6 +85,7 @@ world.afterEvents.playerSpawn.subscribe((ev) => {
     if (!d) return beginBirth(player);
     resetCaches(player);
     applyScale(player, d);
+    try { justice.onPlayerSpawn(player, ev.initialSpawn); } catch (e) { console.warn('[Aetheria] justice spawn: ' + e); }
     if (ev.initialSpawn) {
       msg(player, `§6✦ Bienvenido/a de nuevo a Aetheria, ${player.name}. §7Nivel ${d.level}${d.guild?.member ? ' · Gremio ' + rkB(d.guild.rank) : ''}.`.replace('Bienvenido/a', d.gender === 'f' ? 'Bienvenida' : 'Bienvenido'));
       quests.dailyCheck(player);
@@ -74,10 +96,13 @@ world.afterEvents.playerSpawn.subscribe((ev) => {
 });
 
 world.beforeEvents.playerLeave.subscribe((ev) => {
+  try { justice.onPlayerLeave(ev.player); } catch {}
   try { forgetPlayer(ev.player); } catch {}
 });
 
 world.beforeEvents.playerInteractWithEntity.subscribe((ev) => {
+  // Primero la justicia: agacharse + tocar a un NPC = intento de robo; atado no puedes interactuar.
+  try { if (justice.onBeforeInteractEntity(ev)) return; } catch (e) { console.warn('[Aetheria] justice interact: ' + e); }
   if (ev.target?.typeId !== npc.NPC_TYPE) return;
   ev.cancel = true;
   const player = ev.player;
@@ -85,12 +110,27 @@ world.beforeEvents.playerInteractWithEntity.subscribe((ev) => {
   system.run(() => npc.openNpc(player, target));
 });
 
+world.beforeEvents.playerInteractWithBlock.subscribe((ev) => {
+  try { justice.onBeforeInteractBlock(ev); } catch (e) { console.warn('[Aetheria] justice block: ' + e); }
+});
+
+world.beforeEvents.itemUse.subscribe((ev) => {
+  try { justice.onBeforeItemUse(ev); } catch (e) { console.warn('[Aetheria] justice item: ' + e); }
+});
+
+if (world.beforeEvents.entityHurt) {
+  world.beforeEvents.entityHurt.subscribe((ev) => {
+    try { justice.onBeforeEntityHurt(ev); } catch (e) { console.warn('[Aetheria] justice hurt: ' + e); }
+  });
+}
+
 const SEALS = new Map(Object.entries(BOSSES).map(([id, b]) => [b.seal, id]));
 
 world.afterEvents.itemUse.subscribe((ev) => {
   const player = ev.source;
   const id = ev.itemStack?.typeId;
   if (!player || !id) return;
+  try { if (justice.onItemUse(player, ev.itemStack)) return; } catch (e) { console.warn('[Aetheria] justice useItem: ' + e); }
   if (id === 'rpg:journal') return openJournal(player);
   if (CASTERS.has(id)) {
     if (!getP(player)) return;
@@ -129,10 +169,21 @@ world.afterEvents.itemCompleteUse.subscribe((ev) => {
 
 world.afterEvents.entityHurt.subscribe((ev) => {
   try { combat.onHurt(ev); } catch (e) { console.warn('[Aetheria] onHurt: ' + e); }
+  try { justice.onEntityHurt(ev); } catch (e) { console.warn('[Aetheria] justice onHurt: ' + e); }
 });
 
 world.afterEvents.entityDie.subscribe((ev) => {
   try { combat.onDie(ev); } catch (e) { console.warn('[Aetheria] onDie: ' + e); }
+  try { justice.onEntityDie(ev); } catch (e) { console.warn('[Aetheria] justice onDie: ' + e); }
+  try { settlements.onEntityDie(ev); } catch (e) { console.warn('[Aetheria] settlements onDie: ' + e); }
+});
+
+world.afterEvents.projectileHitEntity.subscribe((ev) => {
+  try { justice.onProjectileHit(ev); } catch (e) { console.warn('[Aetheria] projectile: ' + e); }
+});
+
+world.afterEvents.projectileHitBlock.subscribe((ev) => {
+  try { justice.onProjectileHit(ev); } catch (e) { console.warn('[Aetheria] projectile: ' + e); }
 });
 
 world.afterEvents.playerBreakBlock.subscribe((ev) => {
@@ -190,7 +241,9 @@ function secondTick() {
     if (seconds % 10 === 0) familyUpkeep(player);
   });
   try { bosses.bossTick(); } catch (e) { console.warn('[Aetheria] bossTick: ' + e); }
+  try { justice.secondTick(); } catch (e) { console.warn('[Aetheria] justice: ' + e); }
   if (seconds % 2 === 0) {
+    try { settlements.settlementTick(); } catch (e) { console.warn('[Aetheria] settlementTick: ' + e); }
     try { summonTick(); } catch {}
     try { dungeons.dungeonTick(); } catch (e) { console.warn('[Aetheria] dungeonTick: ' + e); }
   }
@@ -206,6 +259,7 @@ function start() {
   W();
   system.runInterval(secondTick, 20);
   system.runInterval(() => {
+    try { justice.fastTick(); } catch (e) { console.warn('[Aetheria] justice fast: ' + e); }
     try { climbTick(); } catch {}
     each((p) => { const d = getP(p); if (d) fastMoveTick(p, d); });
   }, 2);

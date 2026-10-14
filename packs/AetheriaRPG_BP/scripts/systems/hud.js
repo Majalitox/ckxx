@@ -8,6 +8,7 @@ import { ELEMENTS } from '../data/elements.js';
 import { slotInfo, cooldownLeft } from './magic.js';
 import { targetInfo } from './combat.js';
 import { hpOf, heldItem } from '../util/compat.js';
+import * as justice from './justice.js';
 
 export const CASTERS = new Set(['rpg:grimoire', 'rpg:staff_apprentice', 'rpg:staff_archmage']);
 
@@ -35,6 +36,7 @@ export function hudTick() {
       if (t) line = t + '\n' + line;
     }
     if (stageOf(d) !== 'adult') line += stageOf(d) === 'child' ? ' §d[Niño/a]'.replace('o/a', d.gender === 'f' ? 'a' : 'o') : ' §d[Adolescente]';
+    try { const js = justice.hudStatus(player); if (js) line = js + '\n' + line; } catch {}
     try { player.onScreenDisplay.setActionBar(line); } catch {}
   }
 }

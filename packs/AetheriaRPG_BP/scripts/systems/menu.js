@@ -19,6 +19,9 @@ import { dungeonList, tryGenerate } from './dungeons.js';
 import { summonBoss } from './bosses.js';
 import { BOSSES } from '../data/mobs.js';
 import { rebirth } from './birth.js';
+import { atlasText } from './settlements.js';
+import { profileText as stealthText } from './justice.js';
+import { journalPage as socialPage } from './social.js';
 import { buttons, info, confirm, ask, guarded } from '../util/ui.js';
 import { bar, fmt, hearts } from '../util/text.js';
 import { dist2D, cardinal } from '../util/math.js';
@@ -59,6 +62,9 @@ async function mainMenu(player) {
     { text: '§lGremio', icon: 'textures/items/rpg_guild_card', fn: () => guildInfo(player) },
     { text: '§lFamilia', icon: 'textures/items/bed_red', fn: () => familyMenu(player) },
     { text: '§lRelaciones', icon: 'textures/items/cake', fn: () => relationsMenu(player) },
+    { text: '§lPosición social y hazañas', icon: 'textures/items/gold_ingot', fn: () => info(player, '§l§6Posición social', socialPage(player)) },
+    { text: '§lReinos y asentamientos', icon: 'textures/items/map_filled', fn: () => info(player, '§l§2Reinos y asentamientos', atlasText(player)) },
+    { text: `§lSigilo y antecedentes${(d.wanted?.stars ?? 0) > 0 ? ' §c(SE BUSCA)' : ''}`, icon: 'textures/items/iron_bars', fn: () => info(player, '§l§5Sigilo y antecedentes', stealthText(player)) },
     { text: `§lMensajes${unread ? ` §c(${unread})` : ''}`, icon: 'textures/items/book_writable', fn: () => inboxMenu(player) },
     { text: '§lPasatiempos', icon: 'textures/items/iron_pickaxe', fn: () => hobbiesMenu(player) },
     { text: `§lRaza: ${race.name}`, icon: 'textures/items/totem', fn: () => raceMenu(player) },
@@ -329,6 +335,14 @@ async function guide(player) {
     '§fMantén SALTAR contra una pared para trepar. Agáchate para sujetarte. Gasta aguante.',
     '§6§lMazmorras y jefes',
     '§fLas mazmorras aparecen cerca mientras exploras. Los jefes se invocan con sellos (tienda del Gremio, mazmorras).',
+    '§6§lReinos, pueblos y aldeas',
+    '§fAl explorar aparecen aldeas, pueblos, ciudades y capitales de 10 culturas distintas, cada reino con su soberano, sus leyes y su economía. Los habitantes trabajan, comercian, van a la taberna, a misa y a dormir; los guardias patrullan y de noche puede haber asaltos.',
+    '§6§lEconomía y regateo',
+    '§fLos precios cambian según el pueblo, el día, tu clase social y tu fama. En las tiendas puedes regatear: ofrece menos y mira cómo reacciona el mercader.',
+    '§6§lRobos y justicia',
+    '§fAgáchate y toca a alguien para robarle del bolsillo (minijuego). El ojo del HUD indica si te observan: cerrado = nadie mira, entreabierto = alguien te ve, abierto = te han pillado. Un testigo con (!) correrá al guardia: delito menor = 1 minuto en el cepo (te tirarán tomates), grave = 15 min de cárcel, asesinato = 30 min. Puedes robarle la llave al carcelero para fugarte.',
+    '§6§lClase social y hazañas',
+    '§fTu origen, tu riqueza, tus títulos y tus hazañas deciden tu clase. Los nobles te tratan distinto que los campesinos, y tu fama (o infamia) llega antes que tú a cada reino.',
   ].join('\n'));
 }
 

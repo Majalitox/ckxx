@@ -24,6 +24,9 @@ export function title(player, t, sub) {
 /** Último tick en que otro sistema usó la barra de acción (el HUD espera para no taparlo). */
 export const actionbarLock = new Map();
 
+/** Ganchos que asigna main.js. */
+export const progressHooks = { onGuildRank: undefined }; // (player, rank)
+
 export function actionbar(player, text) {
   actionbarLock.set(player.id, system.currentTick);
   try { player.onScreenDisplay.setActionBar(text); } catch {}
@@ -150,6 +153,7 @@ export function checkGuildRank(player) {
     try { world.sendMessage(`§6[Gremio] §f${player.name} §eha ascendido a rango ${rkB(r)}§e (${RANK_TITLES[r]}).`); } catch {}
     addGold(player, 50 * r);
     dirty(player);
+    try { progressHooks.onGuildRank?.(player, r); } catch (e) { console.warn('[Aetheria] onGuildRank: ' + e); }
   }
 }
 

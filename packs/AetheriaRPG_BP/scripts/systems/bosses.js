@@ -7,6 +7,9 @@ import { rkB } from '../data/ranks.js';
 import { particle, sound, damage, effect, knockback, valid, hpOf, heal, getBlock, cmd } from '../util/compat.js';
 import { dist, rand, randInt, pick } from '../util/math.js';
 
+/** Ganchos que asigna main.js (p. ej. registrar la hazaña). */
+export const hooks = { onDefeated: undefined }; // (player, bossTypeId)
+
 const damagers = new Map(); // bossId -> Map(playerId -> dmg)
 const nextAbility = new Map();
 
@@ -251,6 +254,7 @@ export function onBossDeath(boss, killer) {
     const t = 'Matador: ' + b.name;
     if (!d.titles.includes(t)) d.titles.push(t);
     dirty(p);
+    try { hooks.onDefeated?.(p, boss.typeId); } catch (e) { console.warn('[Aetheria] onDefeated: ' + e); }
   }
   // Cadena de jefes: a veces sueltan el sello del siguiente.
   const next = Object.entries(BOSSES).find(([, x]) => x.rank === b.rank + 1);

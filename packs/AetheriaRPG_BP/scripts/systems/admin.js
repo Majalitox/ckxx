@@ -14,6 +14,11 @@
 //   /scriptevent rpg:boss rpg:lich        → invocar jefe
 //   /scriptevent rpg:set daysToAdult 8    → cambiar un ajuste
 //   /scriptevent rpg:letter               → forzar cartas de NPCs
+//   /scriptevent rpg:settle capital enano → crear un asentamiento delante (tipo y cultura opcionales)
+//   /scriptevent rpg:raid                 → asalto nocturno al asentamiento más cercano
+//   /scriptevent rpg:obras                → estado de las construcciones en curso
+//   /scriptevent rpg:wanted 3             → fijar estrellas de búsqueda (0 = perdón)
+//   /scriptevent rpg:pardon               → indulto total (sales del cepo o de la cárcel)
 import { getP, dirty } from '../core/store.js';
 import { cfg, setCfg, DEFAULTS } from '../core/config.js';
 import { addXp, addGold, addKarma, msg, checkGuildRank } from '../core/progression.js';
@@ -26,6 +31,8 @@ import { tryGenerate } from './dungeons.js';
 import { summonBoss } from './bosses.js';
 import { letterTick } from './npc.js';
 import { resetCaches } from './passives.js';
+import * as settlements from './settlements.js';
+import * as justice from './justice.js';
 
 export function onScriptEvent(ev) {
   const id = ev.id;
@@ -47,6 +54,17 @@ export function onScriptEvent(ev) {
     }
     case 'rpg:dungeon': return tryGenerate(player, true, Math.max(0, Math.min(8, n || 0)));
     case 'rpg:boss': return summonBoss(player, arg.includes(':') ? arg : 'rpg:' + arg);
+    case 'rpg:settle': {
+      const [kind, culture] = arg.split(/\s+/).filter(Boolean);
+      const ok = settlements.forceSettlement(player, kind, culture);
+      return msg(player, ok === false ? '§cYa hay una construcción en curso. Espera a que termine (/scriptevent rpg:obras).' : `§a✔ Construyendo ${kind ?? 'asentamiento'}${culture ? ' (' + culture + ')' : ''} delante de ti...`);
+    }
+    case 'rpg:raid': {
+      const s = settlements.settlementAt(player.dimension.id, player.location) ?? settlements.nearestSettlement(player.dimension.id, player.location, 200);
+      if (!s) return msg(player, '§cNo hay ningún asentamiento a menos de 200 bloques.');
+      return msg(player, settlements.startRaid(s) ? `§a✔ Asalto iniciado en ${s.name}.` : `§cNo se pudo iniciar el asalto en ${s.name}.`);
+    }
+    case 'rpg:obras': return msg(player, '§7' + settlements.constructionStatus());
   }
   if (!d) return msg(player, '§cAún no has nacido.');
   switch (id) {
@@ -59,6 +77,8 @@ export function onScriptEvent(ev) {
     case 'rpg:element': if (ELEMENTS[arg]) { d.element = arg; d.learned = [0]; d.slots = ['r', 'p:0']; } else msg(player, `§cElementos: ${Object.keys(ELEMENTS).join(', ')}`); break;
     case 'rpg:guild': d.guild = { ...(d.guild ?? {}), member: true, rank: Math.max(0, Math.min(8, n || 0)), points: GUILD_POINTS[Math.max(0, Math.min(8, n || 0))] }; checkGuildRank(player); break;
     case 'rpg:magic': d.magicXp = MAGIC_XP[Math.max(0, Math.min(8, n || 0))]; break;
+    case 'rpg:wanted': justice.setWanted(player, n || 0); break;
+    case 'rpg:pardon': justice.pardon(player); return;
     default: return msg(player, '§cComando rpg desconocido.');
   }
   dirty(player);
