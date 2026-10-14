@@ -67,6 +67,33 @@ export const ROLE_NAMES = {
   padre: 'Padre', madre: 'Madre', hermano: 'Hermano', hermana: 'Hermana', recepcionista: 'Recepcionista del Gremio',
   maestro: 'Maestro del Gremio', mercader: 'Mercader', herrero: 'Herrero', sacerdotisa: 'Sacerdotisa', sombra: 'Figura Encapuchada',
   aldeano: 'Aldeano', aventurero: 'Aventurero', bardo: 'Bardo', pareja: 'Pareja',
+  granjero: 'Granjero', tabernero: 'Tabernero', sacerdote: 'Sacerdote', noble: 'Noble', mendigo: 'Mendigo', ladron: 'Ladrón',
+  guardia: 'Guardia', carcelero: 'Carcelero', rey: 'Rey',
 };
+
+/** Nombre del oficio según el género: [masculino, femenino]. */
+export const JOB_NAMES = {
+  granjero: ['Granjero', 'Granjera'], herrero: ['Herrero', 'Herrera'], mercader: ['Mercader', 'Mercader'],
+  tabernero: ['Tabernero', 'Tabernera'], sacerdote: ['Sacerdote', 'Sacerdotisa'], sacerdotisa: ['Sacerdote', 'Sacerdotisa'],
+  noble: ['Noble', 'Noble'], mendigo: ['Mendigo', 'Mendiga'], ladron: ['Ladrón', 'Ladrona'], guardia: ['Guardia', 'Guardia'],
+  carcelero: ['Carcelero', 'Carcelera'], rey: ['Rey', 'Reina'], aldeano: ['Aldeano', 'Aldeana'],
+  recepcionista: ['Recepcionista del Gremio', 'Recepcionista del Gremio'], maestro: ['Maestro del Gremio', 'Maestra del Gremio'],
+  sombra: ['Figura Encapuchada', 'Figura Encapuchada'], padre: ['Padre', 'Madre'], madre: ['Padre', 'Madre'],
+  hermano: ['Hermano', 'Hermana'], hermana: ['Hermano', 'Hermana'], aventurero: ['Aventurero', 'Aventurera'],
+  bardo: ['Bardo', 'Barda'], pareja: ['Pareja', 'Pareja'],
+};
+
+/** Etiqueta del oficio con género (por defecto, masculino). */
+export function jobLabel(job, gender) {
+  const n = JOB_NAMES[job];
+  if (n) return n[gender === 'f' ? 1 : 0];
+  return ROLE_NAMES[job] ?? (job ? job.charAt(0).toUpperCase() + job.slice(1) : 'Aldeano');
+}
+
+/** Tratamiento de cortesía para nobles y gobernantes. */
+export const NOBLE_PREFIX = { m: 'Don', f: 'Doña' };
+
+/** Apodos que la gente pone a otros vecinos (rumores). */
+export const NICKNAMES = ['el Tuerto', 'la Larga', 'el Rápido', 'la Chismosa', 'el Gordo', 'la Sabia', 'el Pelirrojo', 'la Risueña', 'el Callado', 'la Brava'];
 
 export const PERSONALITIES = ['amable', 'gruñón', 'tímido', 'alegre', 'sabio', 'coqueto', 'serio', 'bromista'];

@@ -1,15 +1,19 @@
-// Elementos mágicos y su árbol de 50 habilidades cada uno.
+// Elementos mágicos, su árbol de 50 habilidades cada uno, estados elementales y reacciones (combos).
 //
 // Cada elemento tiene 10 RAMAS (proyectil, explosión, potenciación, maldición, rayo perforante,
 // dominio, protección, movilidad, invocación y cataclismo) con 5 NIVELES cada una
 // (rango F/E, D/C, B/A, S y SS/SSS). Para aprender una habilidad necesitas la anterior de su rama.
+//
+// v2: cada elemento deja un ESTADO en sus víctimas (mojado, ardiendo, congelado…). Si otro elemento
+// golpea a un objetivo con un estado, se produce una REACCIÓN con efectos extra (ver REACTIONS).
+// Este archivo es solo datos: no accede al mundo.
 
 export const BRANCHES = [
-  { kind: 'bolt', name: 'Proyectil', icon: 'textures/items/blaze_powder', mana: 8, cd: 1.2, pmul: 1.0, range: 20 },
+  { kind: 'bolt', name: 'Proyectil', icon: 'textures/items/blaze_powder', mana: 8, cd: 1.0, pmul: 1.0, range: 20, speed: 1.7 },
   { kind: 'nova', name: 'Explosión', icon: 'textures/items/fireball', mana: 14, cd: 5, pmul: 0.85, radius: 4 },
   { kind: 'buff', name: 'Potenciación', icon: 'textures/items/potion_bottle_drinkable', mana: 12, cd: 30, dur: 20, durStep: 10 },
-  { kind: 'curse', name: 'Maldición', icon: 'textures/items/spider_eye_fermented', mana: 10, cd: 8, pmul: 0.4, range: 10, dur: 5, durStep: 2 },
-  { kind: 'lance', name: 'Haz perforante', icon: 'textures/items/arrow', mana: 16, cd: 4, pmul: 1.15, range: 16 },
+  { kind: 'curse', name: 'Maldición', icon: 'textures/items/spider_eye_fermented', mana: 10, cd: 8, pmul: 0.45, range: 10, dur: 5, durStep: 2 },
+  { kind: 'lance', name: 'Haz perforante', icon: 'textures/items/arrow', mana: 16, cd: 4, pmul: 1.15, range: 16, speed: 3.2 },
   { kind: 'zone', name: 'Dominio', icon: 'textures/items/dragons_breath', mana: 20, cd: 14, pmul: 0.3, radius: 3, range: 20, dur: 4, durStep: 1.5 },
   { kind: 'ward', name: 'Protección', icon: 'textures/items/iron_chestplate', mana: 15, cd: 20, pmul: 0.9 },
   { kind: 'step', name: 'Movilidad', icon: 'textures/items/feather', mana: 8, cd: 4, range: 8 },
@@ -21,7 +25,13 @@ export const TIER_NAMES = ['I · Novicio', 'II · Adepto', 'III · Experto', 'IV
 const TIER_LEVEL = [1, 10, 25, 45, 70];
 const TIER_STEP = [0.8, 1.2, 1.6, 2.0, 2.5];
 const TIER_RANK = [0, 2, 4, 6, 7]; // F, D, B, S, SS
-const TIER_POWER = [5, 9, 15, 24, 38];
+// Curvas de equilibrio (v2): los primeros hechizos son baratos y contundentes; el nivel V es
+// espectacular pero caro y con recarga larga para que no gane un combate de un solo golpe.
+const TIER_POWER = [6, 10, 16, 25, 38];
+const TIER_MANA = [0.75, 1.5, 2.3, 3.2, 4.2];
+const TIER_CD = [1, 1.12, 1.25, 1.4, 1.6];
+/** Ramas "definitivas": en el nivel V su recarga se alarga un 25 %. */
+const ULT_KINDS = new Set(['nova', 'zone', 'rain', 'summon']);
 
 export const ELEMENTS = {
   fuego: {
@@ -98,7 +108,157 @@ export const ELEMENTS = {
   },
 };
 
+/* ------------------------------------------------------------------ */
+/* Datos visuales/sonoros por elemento (v2)                             */
+/* ------------------------------------------------------------------ */
+// statusId: estado que deja el elemento. trail: partícula vanilla que acompaña al proyectil.
+// impact: sonido del impacto. shout: grito al lanzar un hechizo de nivel V.
+const ELEMENT_EXTRA = {
+  fuego: { statusId: 'ardiendo', trail: 'minecraft:basic_flame_particle', impact: 'mob.ghast.fireball', cast: 'mob.blaze.shoot', orbScale: 1.1 },
+  agua: { statusId: 'mojado', trail: 'minecraft:water_evaporation_bucket_emitter', impact: 'random.splash', cast: 'bucket.empty_water', orbScale: 1.0 },
+  tierra: { statusId: 'aturdido', trail: 'minecraft:knockback_roar_particle', impact: 'dig.stone', cast: 'dig.gravel', orbScale: 1.2 },
+  viento: { statusId: 'desequilibrado', trail: undefined, impact: 'mob.enderdragon.flap', cast: 'mob.enderdragon.flap', orbScale: 0.9 },
+  rayo: { statusId: 'electrizado', trail: 'minecraft:electric_spark_particle', impact: 'random.fizz', cast: 'ambient.weather.lightning.impact', orbScale: 0.9 },
+  hielo: { statusId: 'congelado', trail: 'minecraft:snowflake_particle', impact: 'random.glass', cast: 'random.glass', orbScale: 1.0 },
+  luz: { statusId: 'radiante', trail: 'minecraft:totem_particle', impact: 'random.orb', cast: 'beacon.activate', orbScale: 1.0 },
+  oscuridad: { statusId: 'maldito', trail: 'minecraft:portal_reverse_particle', impact: 'mob.endermen.portal', cast: 'mob.endermen.portal', orbScale: 1.0 },
+  necromancia: { statusId: 'marchito', trail: 'minecraft:soul_particle', impact: 'mob.wither.hurt', cast: 'mob.wither.shoot', orbScale: 1.0 },
+  naturaleza: { statusId: 'envenenado', trail: 'minecraft:villager_happy', impact: 'dig.grass', cast: 'block.sweet_berry_bush.place', orbScale: 0.9 },
+  arcano: { statusId: 'inestable', trail: 'minecraft:enchanting_table_particle', impact: 'mob.evocation_illager.cast_spell', cast: 'mob.evocation_illager.cast_spell', orbScale: 1.0 },
+  sangre: { statusId: 'sangrando', trail: 'minecraft:critical_hit_emitter', impact: 'mob.ravager.bite', cast: 'mob.ravager.bite', orbScale: 1.0 },
+};
+for (const [id, x] of Object.entries(ELEMENT_EXTRA)) Object.assign(ELEMENTS[id], x, { fx: 'rpg:fx_' + id });
+
 export const ELEMENT_IDS = Object.keys(ELEMENTS);
+
+/* ------------------------------------------------------------------ */
+/* Estados elementales                                                  */
+/* ------------------------------------------------------------------ */
+// ticks: duración por defecto. sym: símbolo (BMP) para el HUD.
+export const STATUSES = {
+  mojado: { name: 'Mojado', c: '§9', rgb: [0.3, 0.55, 1], ticks: 160, sym: '☂' },
+  ardiendo: { name: 'Ardiendo', c: '§c', rgb: [1, 0.45, 0.1], ticks: 100, sym: '♨' },
+  congelado: { name: 'Congelado', c: '§b', rgb: [0.65, 0.9, 1], ticks: 90, sym: '❄' },
+  electrizado: { name: 'Electrizado', c: '§e', rgb: [1, 0.95, 0.3], ticks: 90, sym: '⚡' },
+  envenenado: { name: 'Envenenado', c: '§2', rgb: [0.35, 0.85, 0.2], ticks: 140, sym: '☣' },
+  maldito: { name: 'Maldito', c: '§8', rgb: [0.4, 0.1, 0.55], ticks: 160, sym: '☾' },
+  aturdido: { name: 'Aturdido', c: '§6', rgb: [0.7, 0.5, 0.2], ticks: 60, sym: '✶' },
+  sangrando: { name: 'Sangrando', c: '§4', rgb: [0.75, 0.05, 0.1], ticks: 110, sym: '♦' },
+  enraizado: { name: 'Enraizado', c: '§a', rgb: [0.3, 0.8, 0.2], ticks: 60, sym: '♣' },
+  marchito: { name: 'Marchito', c: '§5', rgb: [0.4, 0.85, 0.5], ticks: 130, sym: '☠' },
+  radiante: { name: 'Radiante', c: '§e', rgb: [1, 1, 0.7], ticks: 130, sym: '☼' },
+  inestable: { name: 'Inestable', c: '§d', rgb: [0.85, 0.4, 1], ticks: 130, sym: '✧' },
+  desequilibrado: { name: 'Desequilibrado', c: '§f', rgb: [0.85, 1, 0.9], ticks: 50, sym: '~' },
+  aterrado: { name: 'Aterrado', c: '§0', rgb: [0.2, 0.05, 0.3], ticks: 80, sym: '!' },
+};
+
+/** Estado que aplica cada elemento. */
+export const ELEMENT_STATUS = Object.fromEntries(Object.entries(ELEMENT_EXTRA).map(([id, x]) => [id, x.statusId]));
+
+/* ------------------------------------------------------------------ */
+/* Reacciones elementales (combos)                                      */
+/* ------------------------------------------------------------------ */
+// el: elemento que golpea ('*' = cualquiera). on: estado que ya tiene el objetivo ('*' = cualquiera).
+// mult: multiplicador de daño. fx: efectos extra (los interpreta systems/magic.js):
+//   chain(n)    la descarga salta a n enemigos cercanos        explode   explosión en área (50 %)
+//   stun        aturde (lentitud extrema + estado Aturdido)   freeze    congela en el sitio 3 s
+//   spreadFire  el fuego se propaga a los enemigos cercanos  spreadPoison  el veneno se propaga
+//   heal(x)     cura al lanzador x·daño                      root      enraíza (no puede moverse)
+//   crit        golpe crítico con robo de vida               fear      el enemigo huye aterrado
+//   blindAoE    nube que ciega a los enemigos cercanos       weaken    debilidad y defensas rotas
+//   chill       aplica Congelado                             burst     pequeña onda (40 %)
+//   refund      devuelve parte del maná                      blind     ceguera
+//   wither      marchitamiento                               smite     castigo sagrado (x más a no-muertos)
+// consume: el estado desaparece. noApply: el elemento atacante no deja su propio estado.
+export const REACTIONS = [
+  { id: 'electrocucion', name: 'Electrocución', c: '§e', el: 'rayo', on: 'mojado', mult: 2.0, fx: ['chain:3', 'stun'], consume: true, short: 'daño x2, la descarga salta a 3 enemigos y aturde' },
+  { id: 'electrocucion_agua', name: 'Electrocución', c: '§e', el: 'agua', on: 'electrizado', mult: 1.8, fx: ['chain:2'], consume: true, short: 'daño x1.8 y la corriente salta a 2 enemigos' },
+  { id: 'superconduccion', name: 'Superconducción', c: '§b', el: 'rayo', on: 'congelado', mult: 1.6, fx: ['weaken'], consume: true, short: 'daño x1.6 y rompe sus defensas' },
+  { id: 'sobrecarga', name: 'Sobrecarga', c: '§6', el: 'rayo', on: 'ardiendo', mult: 1.5, fx: ['explode'], consume: true, short: 'daño x1.5 y explosión en área' },
+  { id: 'sobrecarga_fuego', name: 'Sobrecarga', c: '§6', el: 'fuego', on: 'electrizado', mult: 1.5, fx: ['explode'], consume: true, short: 'daño x1.5 y explosión en área' },
+  { id: 'derretir', name: 'Derretir', c: '§c', el: 'fuego', on: 'congelado', mult: 1.8, fx: [], consume: true, short: 'daño x1.8' },
+  { id: 'vapor', name: 'Vapor', c: '§7', el: 'agua', on: 'ardiendo', mult: 1.3, fx: ['blindAoE'], consume: true, noApply: true, short: 'daño x1.3 y una nube de vapor ciega a los enemigos cercanos' },
+  { id: 'vapor_fuego', name: 'Vapor', c: '§7', el: 'fuego', on: 'mojado', mult: 1.2, fx: ['blindAoE'], consume: true, noApply: true, short: 'daño x1.2 y una nube de vapor ciega a los cercanos' },
+  { id: 'congelacion', name: 'Congelación', c: '§b', el: 'hielo', on: 'mojado', mult: 1.25, fx: ['freeze'], consume: true, short: 'congela al enemigo en el sitio' },
+  { id: 'congelacion_agua', name: 'Congelación', c: '§b', el: 'agua', on: 'congelado', mult: 1.2, fx: ['freeze'], consume: true, short: 'congela al enemigo en el sitio' },
+  { id: 'choque_termico', name: 'Choque Térmico', c: '§3', el: 'hielo', on: 'ardiendo', mult: 1.6, fx: [], consume: true, short: 'daño x1.6' },
+  { id: 'torbellino_fuego', name: 'Torbellino de Fuego', c: '§6', el: 'viento', on: 'ardiendo', mult: 1.3, fx: ['spreadFire'], consume: false, short: 'aviva las llamas y las propaga a los enemigos cercanos' },
+  { id: 'tormenta_electrica', name: 'Tormenta Eléctrica', c: '§e', el: 'viento', on: 'electrizado', mult: 1.3, fx: ['chain:2'], consume: true, short: 'el viento arrastra la carga a 2 enemigos más' },
+  { id: 'viento_helado', name: 'Viento Helado', c: '§b', el: 'viento', on: 'mojado', mult: 1.2, fx: ['chill'], consume: true, short: 'congela al enemigo empapado' },
+  { id: 'fragmentar', name: 'Fragmentar', c: '§6', el: 'tierra', on: 'congelado', mult: 2.0, fx: ['burst'], consume: true, short: 'daño x2: el hielo estalla en esquirlas' },
+  { id: 'aplastamiento', name: 'Aplastamiento', c: '§6', el: 'tierra', on: 'desequilibrado', mult: 1.7, fx: ['stun'], consume: true, short: 'daño x1.7 y aturde al enemigo en el aire' },
+  { id: 'lodazal', name: 'Lodazal', c: '§6', el: 'tierra', on: 'mojado', mult: 1.2, fx: ['root'], consume: true, short: 'convierte el agua en barro y lo enraíza' },
+  { id: 'purificacion', name: 'Purificación', c: '§e', el: 'luz', on: 'maldito', mult: 1.5, fx: ['heal:0.3'], consume: true, short: 'daño x1.5 y te cura' },
+  { id: 'consagracion', name: 'Consagración', c: '§e', el: 'luz', on: 'marchito', mult: 1.6, fx: ['smite'], consume: true, short: 'daño x1.6 (aún más contra no-muertos)' },
+  { id: 'eclipse', name: 'Eclipse', c: '§5', el: 'oscuridad', on: 'radiante', mult: 1.7, fx: ['blind'], consume: true, short: 'daño x1.7 y lo deja ciego' },
+  { id: 'terror', name: 'Terror', c: '§8', el: 'oscuridad', on: 'aturdido', mult: 1.3, fx: ['fear'], consume: true, short: 'el enemigo huye aterrado' },
+  { id: 'plaga', name: 'Plaga', c: '§2', el: 'necromancia', on: 'envenenado', mult: 1.4, fx: ['spreadPoison'], consume: false, short: 'el veneno se pudre y contagia a los enemigos cercanos' },
+  { id: 'festin_almas', name: 'Festín de Almas', c: '§5', el: 'necromancia', on: 'sangrando', mult: 1.3, fx: ['heal:0.4'], consume: true, short: 'devora la sangre derramada y te cura' },
+  { id: 'florecer', name: 'Florecer', c: '§a', el: 'naturaleza', on: 'mojado', mult: 1.2, fx: ['heal:0.2', 'root'], consume: true, short: 'brotan raíces que lo atrapan y te curan' },
+  { id: 'hemorragia', name: 'Hemorragia', c: '§4', el: 'sangre', on: 'sangrando', mult: 1.6, fx: ['crit'], consume: true, short: 'golpe crítico x1.6 con robo de vida' },
+  { id: 'septicemia', name: 'Septicemia', c: '§4', el: 'sangre', on: 'envenenado', mult: 1.5, fx: ['wither'], consume: true, short: 'daño x1.5 y marchitamiento' },
+  { id: 'combustion', name: 'Combustión Tóxica', c: '§6', el: 'fuego', on: 'envenenado', mult: 1.5, fx: ['explode'], consume: true, short: 'el gas venenoso explota' },
+  { id: 'pira', name: 'Pira Forestal', c: '§c', el: 'fuego', on: 'enraizado', mult: 1.8, fx: [], consume: true, short: 'las raíces arden: daño x1.8' },
+  { id: 'desestabilizar', name: 'Desestabilizar', c: '§d', el: '*', on: 'inestable', mult: 1.35, fx: ['burst'], consume: true, short: 'la marca arcana estalla (x1.35 y onda)' },
+  { id: 'resonancia', name: 'Resonancia', c: '§d', el: 'arcano', on: '*', mult: 1.3, fx: ['refund'], consume: true, short: '+30 % de daño contra cualquier estado y recuperas maná' },
+];
+
+/** Busca la reacción que provoca el elemento elId sobre un objetivo con los estados dados (en orden de prioridad). */
+export function findReaction(elId, statusIds) {
+  if (!statusIds || !statusIds.length) return undefined;
+  const own = ELEMENT_STATUS[elId];
+  for (const r of REACTIONS) {
+    if (r.el !== '*' && r.el !== elId) continue;
+    if (r.el === '*' && elId === 'arcano') continue;
+    if (r.on === '*') {
+      const st = statusIds.find((s) => s !== own && s !== 'aterrado');
+      if (st) return { ...r, status: st };
+      continue;
+    }
+    if (statusIds.includes(r.on)) return { ...r, status: r.on };
+  }
+  return undefined;
+}
+
+/** Reacciones que provoca el elemento (como atacante) y las que prepara (su estado). */
+export function reactionsFor(elId) {
+  const own = ELEMENT_STATUS[elId];
+  const triggers = REACTIONS.filter((r) => r.el === elId || (r.el === '*' && elId !== 'arcano'));
+  const setups = REACTIONS.filter((r) => r.on === own && r.el !== elId && r.el !== '*');
+  return { triggers, setups, status: own };
+}
+
+function stName(id) {
+  const st = STATUSES[id];
+  return st ? `${st.c}${st.name}` : '§fcualquier estado';
+}
+
+function elName(id) {
+  const e = ELEMENTS[id];
+  return e ? `${e.c}${e.name}` : '§fcualquier elemento';
+}
+
+/** Texto de combos para la descripción de una habilidad. */
+function combosText(elId) {
+  const { triggers, setups, status } = reactionsFor(elId);
+  const lines = [];
+  if (status) lines.push(`§7Deja al objetivo ${stName(status)}§7.`);
+  if (triggers.length) lines.push('§d✦ Combos: ' + triggers.slice(0, 4).map((r) => `§7sobre ${stName(r.on)}§7 → ${r.c}${r.name}§7`).join(' · '));
+  if (setups.length) lines.push('§5✦ Prepara: ' + setups.slice(0, 3).map((r) => `${elName(r.el)}§7 → ${r.c}${r.name}§7`).join(' · '));
+  return lines.join('\n');
+}
+
+/** Guía completa de reacciones para el Diario (texto multilínea en español). */
+export function reactionGuide() {
+  const head = '§l§dReacciones elementales§r\n§7Cada elemento deja un estado en sus víctimas. Si las golpeas con OTRO elemento mientras dura, se produce una reacción con efectos especiales. ¡Combina hechizos o juega en grupo!\n\n§l§fEstados§r\n' +
+    ELEMENT_IDS.map((e) => `${elName(e)}§7 → ${stName(ELEMENT_STATUS[e])}`).join('\n');
+  const seen = new Set();
+  const body = REACTIONS.filter((r) => !seen.has(r.name) && seen.add(r.name)).map((r) => {
+    const pairs = REACTIONS.filter((x) => x.name === r.name).map((x) => `${elName(x.el)}§7 + ${stName(x.on)}`).join('§7 o ');
+    return `${r.c}§l${r.name}§r§7: ${pairs}§7 — ${r.short}.`;
+  }).join('\n');
+  return head + '\n\n§l§fReacciones§r\n' + body;
+}
 
 export const TALENTS = [
   { name: '§7Bajo', mult: 0.75, weight: 25 },
@@ -128,6 +288,7 @@ export function getSkill(elementId, idx) {
   const B = BRANCHES[branch];
   let rank = TIER_RANK[tier];
   if (tier === 4 && branch >= 8) rank = 8; // las dos últimas exigen rango SSS
+  const ult = tier === 4 && ULT_KINDS.has(B.kind) ? 1.25 : 1;
   const s = {
     id: idx,
     element: elementId,
@@ -138,34 +299,45 @@ export function getSkill(elementId, idx) {
     level: TIER_LEVEL[tier] + Math.floor(branch * TIER_STEP[tier]),
     rank,
     sp: tier + 1,
-    mana: Math.round(B.mana * (1 + tier * 0.8)),
-    cd: Math.max(10, Math.round(B.cd * (1 + tier * 0.1) * 20)),
+    mana: Math.max(4, Math.round(B.mana * TIER_MANA[tier])),
+    cd: Math.max(10, Math.round(B.cd * TIER_CD[tier] * ult * 20)),
     power: Math.round(TIER_POWER[tier] * (B.pmul ?? 1) * 10) / 10,
     radius: B.radius ? B.radius + tier : 0,
     range: B.range ? B.range + tier * 4 : 0,
     duration: B.dur ? Math.round((B.dur + tier * B.durStep) * 20) : 0,
+    // v2
+    speed: B.speed ? Math.round((B.speed + tier * 0.22) * 100) / 100 : 0,
+    strikes: B.kind === 'rain' ? 3 + tier * 2 : 0,
+    count: B.kind === 'summon' ? (tier >= 4 ? 3 : tier >= 2 ? 2 : 1) : 0,
+    statusId: ELEMENT_STATUS[elementId],
+    ultimate: tier === 4,
   };
   s.desc = describe(el, s);
   cache[key] = s;
   return s;
 }
 
+const DAMAGING = new Set(['bolt', 'nova', 'curse', 'lance', 'zone', 'rain']);
+
 function describe(el, s) {
   const st = STATUS_TEXT[el.status];
   const secs = (s.duration / 20).toFixed(0);
+  const eln = el.name.toLowerCase();
+  let main = '';
   switch (s.kind) {
-    case 'bolt': return `Lanza un proyectil de ${el.name.toLowerCase()} (alcance ${s.range}) que inflige ~${s.power} de daño y ${st}.`;
-    case 'nova': return `Libera una explosión de ${el.name.toLowerCase()} a tu alrededor (radio ${s.radius}) que inflige ~${s.power} y ${st}.`;
-    case 'buff': return `Te otorga ${el.buff.map((b) => b[0].replace(/_/g, ' ')).join(', ')} de nivel ${s.tier + 1} durante ${secs} s.`;
-    case 'curse': return `Maldice a los enemigos frente a ti (alcance ${s.range}): ${st} con gran intensidad durante ${secs} s.`;
-    case 'lance': return `Dispara un haz que atraviesa a todos los enemigos en línea (alcance ${s.range}), ~${s.power} de daño cada uno.`;
-    case 'zone': return `Crea un dominio de ${el.name.toLowerCase()} (radio ${s.radius}) durante ${secs} s que daña continuamente y ${st}.`;
-    case 'ward': return `Te protege con absorción y te cura ~${Math.round(s.power * 3 + 4)} de vida${['luz', 'agua', 'naturaleza'].includes(s.element) ? ' (también a aliados cercanos)' : ''}.`;
-    case 'step': return el.step === 'blink' ? `Te teletransporta hasta ${s.range} bloques hacia donde miras.` : el.step === 'leap' ? `Un gran salto impulsado por ${el.name.toLowerCase()}.` : `Una embestida veloz que daña a quien atravieses.`;
-    case 'summon': return `Invoca ${s.tier >= 2 ? (s.tier >= 4 ? 3 : 2) : 1} aliado(s) elementales que luchan por ti durante ${secs} s.`;
-    case 'rain': return `Desata ${3 + s.tier * 2} impactos de ${el.name.toLowerCase()} sobre la zona objetivo (radio ${s.radius}), ~${s.power} cada uno.`;
+    case 'bolt': main = `Dispara un orbe de ${eln} que vuela hacia donde apuntas (alcance ${s.range}, se curva levemente hacia el enemigo más cercano) e inflige ~${s.power} de daño; ${st}.${s.tier >= 3 ? ' Al impactar estalla y salpica a los enemigos cercanos.' : ''}`; break;
+    case 'nova': main = `Libera una onda expansiva de ${eln} a tu alrededor (radio ${s.radius}) que inflige ~${s.power}, empuja y ${st}.`; break;
+    case 'buff': main = `Te envuelve en un aura de ${eln}: ${el.buff.map((b) => b[0].replace(/_/g, ' ')).join(', ')} de nivel ${s.tier + 1} durante ${secs} s.`; break;
+    case 'curse': main = `Maldice a los enemigos frente a ti (cono, alcance ${s.range}): ${st} con gran intensidad durante ${secs} s y deja un estado prolongado.`; break;
+    case 'lance': main = `Dispara un haz veloz que atraviesa a todos los enemigos en línea (alcance ${s.range}), ~${s.power} de daño a cada uno.`; break;
+    case 'zone': main = `Crea un dominio de ${eln} (radio ${s.radius}) marcado por un anillo visible durante ${secs} s; daña continuamente y ${st}.`; break;
+    case 'ward': main = `Te protege con absorción y te cura ~${Math.round(s.power * 3 + 4)} de vida${['luz', 'agua', 'naturaleza'].includes(s.element) ? ' (también a aliados cercanos)' : ''}${['necromancia', 'sangre'].includes(s.element) ? '; además drena la vida de los enemigos cercanos' : ''}.`; break;
+    case 'step': main = el.step === 'blink' ? `Te teletransporta hasta ${s.range} bloques hacia donde miras.` : el.step === 'leap' ? `Un gran salto impulsado por ${eln}${s.element === 'tierra' ? '; al aterrizar provoca un temblor' : s.element === 'viento' ? '; al aterrizar suelta una ráfaga' : ''}.` : 'Una embestida veloz que daña a quien atravieses.'; break;
+    case 'summon': main = `Invoca ${s.count} espíritu(s) de ${eln} que te siguen y atacan a lo que tú golpeas durante ${secs} s${['luz', 'agua', 'naturaleza'].includes(s.element) ? '; además te curan cada pocos segundos' : ''}.`; break;
+    case 'rain': main = `Desata ${s.strikes} impactos de ${eln} que caen del cielo sobre la zona objetivo (radio ${s.radius}), ~${s.power} cada uno.`; break;
   }
-  return '';
+  if (s.tier === 4) main += ' §6Hechizo legendario.';
+  return DAMAGING.has(s.kind) || (s.kind === 'step' && el.step !== 'blink') ? main + '\n' + combosText(s.element) : main;
 }
 
 /** Habilidades que se pueden aprender ahora (requisitos de rama). */

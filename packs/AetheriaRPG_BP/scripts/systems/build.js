@@ -1,7 +1,9 @@
 // Construcción procedural de estructuras con comandos: casas familiares, sede del Gremio y mazmorras.
+// (Los pueblos y reinos completos se construyen en systems/structures.js + systems/settlements.js.)
 import { system } from '@minecraft/server';
 import { cmd, findGround, getBlock } from '../util/compat.js';
 import { randInt, chance } from '../util/math.js';
+import { CULTURES } from '../data/cultures.js';
 
 function F(dim, x1, y1, z1, x2, y2, z2, block, mode = '') {
   return cmd(dim, `fill ${x1} ${y1} ${z1} ${x2} ${y2} ${z2} ${block}${mode ? ' ' + mode : ''}`);
@@ -18,31 +20,58 @@ export function areaLoaded(dim, x1, z1, x2, z2, y = 64) {
   return true;
 }
 
-/** Casa familiar de 7×7. Devuelve la posición de la cama/spawn y puntos para NPCs. */
-export function buildHouse(dim, cx, cz) {
+const first = (v) => (Array.isArray(v) ? v[0] : v);
+const bare = (v) => String(first(v) ?? '').split(' [')[0];
+
+/** Materiales de la casa familiar según la cultura (por defecto, la casa humana de la v1). */
+function familyPalette(cultureId) {
+  const P = CULTURES[cultureId]?.pal;
+  if (!P || cultureId === 'humano') {
+    return { found: 'cobblestone', wall: 'oak_planks', floor: 'spruce_planks', log: 'oak_log', roof: 'dark_oak_planks', slab: 'dark_oak_slab', glass: 'glass', light: 'lantern', fence: 'oak_fence', path: 'gravel' };
+  }
+  const solid = (v, def) => {
+    const b = bare(v);
+    return !b || b.includes('leaves') || b.includes('wool') || b.includes('fence') || b.includes('pane') || b.includes('bars') ? def : b;
+  };
+  const roof = first(P.roof) ?? {};
+  const pane = bare(P.pane);
+  return {
+    found: solid(P.found, 'cobblestone'), wall: solid(P.wall, 'oak_planks'), floor: solid(P.floor, 'spruce_planks'),
+    log: solid(P.frame, 'oak_log'), roof: roof.block ?? 'dark_oak_planks', slab: roof.slab ?? 'dark_oak_slab',
+    glass: pane.endsWith('_pane') ? pane.replace('_pane', '') : 'glass', light: P.light ?? 'lantern', fence: bare(P.fence) || 'oak_fence',
+    path: solid(P.path, 'gravel'),
+  };
+}
+
+/**
+ * Casa familiar de 7×7. Devuelve la posición de la cama/spawn y puntos para NPCs.
+ * opts.culture (opcional): estilo de la cultura (humano por defecto).
+ */
+export function buildHouse(dim, cx, cz, opts = {}) {
   const gy = findGround(dim, cx, cz);
   if (gy === undefined) return undefined;
+  const M = familyPalette(opts.culture);
   const x0 = cx - 3, z0 = cz - 3, y0 = gy + 1;
   F(dim, x0 - 1, y0 - 5, z0 - 1, x0 + 7, y0 - 1, z0 + 7, 'dirt', 'replace air');
-  F(dim, x0 - 1, y0 - 1, z0 - 1, x0 + 7, y0 - 1, z0 + 7, 'cobblestone');
+  F(dim, x0 - 1, y0 - 1, z0 - 1, x0 + 7, y0 - 1, z0 + 7, M.found);
   F(dim, x0 - 1, y0, z0 - 1, x0 + 7, y0 + 7, z0 + 7, 'air');
-  F(dim, x0, y0, z0, x0 + 6, y0 + 4, z0 + 6, 'oak_planks', 'hollow');
-  F(dim, x0 + 1, y0, z0 + 1, x0 + 5, y0, z0 + 5, 'spruce_planks');
-  for (const [x, z] of [[x0, z0], [x0 + 6, z0], [x0, z0 + 6], [x0 + 6, z0 + 6]]) F(dim, x, y0, z, x, y0 + 4, z, 'oak_log');
+  F(dim, x0, y0, z0, x0 + 6, y0 + 4, z0 + 6, M.wall, 'hollow');
+  F(dim, x0 + 1, y0, z0 + 1, x0 + 5, y0, z0 + 5, M.floor);
+  for (const [x, z] of [[x0, z0], [x0 + 6, z0], [x0, z0 + 6], [x0 + 6, z0 + 6]]) F(dim, x, y0, z, x, y0 + 4, z, M.log);
   F(dim, x0 + 3, y0 + 1, z0, x0 + 3, y0 + 2, z0, 'air');
-  for (const [x, z] of [[x0, z0 + 3], [x0 + 6, z0 + 3], [x0 + 3, z0 + 6], [x0 + 1, z0], [x0 + 5, z0]]) S(dim, x, y0 + 2, z, 'glass');
-  F(dim, x0 - 1, y0 + 5, z0 - 1, x0 + 7, y0 + 5, z0 + 7, 'dark_oak_planks');
-  F(dim, x0, y0 + 6, z0, x0 + 6, y0 + 6, z0 + 6, 'dark_oak_slab');
+  for (const [x, z] of [[x0, z0 + 3], [x0 + 6, z0 + 3], [x0 + 3, z0 + 6], [x0 + 1, z0], [x0 + 5, z0]]) S(dim, x, y0 + 2, z, M.glass);
+  F(dim, x0 - 1, y0 + 5, z0 - 1, x0 + 7, y0 + 5, z0 + 7, M.roof);
+  F(dim, x0, y0 + 6, z0, x0 + 6, y0 + 6, z0 + 6, M.slab);
   S(dim, x0 + 1, y0 + 1, z0 + 5, 'crafting_table');
   S(dim, x0 + 2, y0 + 1, z0 + 5, 'furnace');
   S(dim, x0 + 5, y0 + 1, z0 + 5, 'chest');
   S(dim, x0 + 5, y0 + 1, z0 + 4, 'barrel');
-  S(dim, x0 + 3, y0 + 3, z0 + 3, 'lantern ["hanging"=true]');
-  S(dim, x0 + 2, y0 - 1, z0 - 1, 'gravel');
-  S(dim, x0 + 3, y0 - 1, z0 - 1, 'gravel');
-  S(dim, x0 + 4, y0 - 1, z0 - 1, 'gravel');
-  S(dim, x0 + 1, y0, z0 - 1, 'oak_fence');
-  S(dim, x0 + 1, y0 + 1, z0 - 1, 'lantern');
+  S(dim, x0 + 3, y0 + 3, z0 + 3, `${M.light} ["hanging"=true]`);
+  S(dim, x0 + 2, y0 - 1, z0 - 1, M.path);
+  S(dim, x0 + 3, y0 - 1, z0 - 1, M.path);
+  S(dim, x0 + 4, y0 - 1, z0 - 1, M.path);
+  S(dim, x0 + 1, y0, z0 - 1, M.fence);
+  S(dim, x0 + 1, y0 + 1, z0 - 1, M.light);
   return {
     spawn: { x: x0 + 3, y: y0 + 1, z: z0 + 3 },
     chest: { x: x0 + 5, y: y0 + 1, z: z0 + 5 },

@@ -1,8 +1,10 @@
-// Pueblo inicial: sede del Gremio con su personal, y reparto de parcelas para las casas familiares.
+// Villa inicial: sede del Gremio con su personal (v1) y enlace con la villa completa
+// (mercado, taberna, herrería, templo, cárcel, guardias...) que construye systems/settlements.js.
 import { world } from '@minecraft/server';
 import { W, wDirty } from '../core/store.js';
 import { buildGuildHall } from './build.js';
 import { makeIdentity, spawnNpc, NPC_TYPE } from './npc.js';
+import { ensureStarterVillage, nextHouseSpot as settlementHouseSpot } from './settlements.js';
 import { dist2D } from '../util/math.js';
 
 const missing = new Map();
@@ -20,8 +22,11 @@ export function town() {
   return W().town;
 }
 
-/** Construye el pueblo junto al primer jugador que nace. */
-export function ensureTown(player) {
+/**
+ * Núcleo de la villa inicial: construye la sede del Gremio junto al jugador y hace aparecer a su
+ * personal. Rellena W().town (center, hall, staff, slots) como en la v1. Devuelve true si existe.
+ */
+export function setupGuildTown(player) {
   const w = W();
   if (w.town?.built) return true;
   if (player.dimension.id !== 'minecraft:overworld') return false;
@@ -34,23 +39,23 @@ export function ensureTown(player) {
   w.town = { built: true, center: { x: cx, y: hall.origin.y, z: cz }, hall, staff, slots: 0 };
   wDirty();
   for (const role of Object.keys(staff)) if (role !== 'sombra') spawnNpc(player.dimension, hall.staff[role], staff[role]);
-  try { world.sendMessage('§6✦ El pueblo de los aventureros se alza junto a vosotros. §7La sede del Gremio está al sur del punto de inicio.'); } catch {}
+  try { world.sendMessage('§6✦ La sede del Gremio de Aventureros se alza junto a vosotros. §7A su alrededor empieza a crecer una villa.'); } catch {}
   return true;
 }
 
-const SLOTS = [[-24, -4], [22, -4], [-6, -26], [-30, -26], [18, -26], [-32, 20], [26, 20], [-50, 0], [46, 0], [-6, -48]];
+/** Construye (o reanuda) la villa inicial junto al primer jugador que nace. */
+export function ensureTown(player) {
+  try {
+    return ensureStarterVillage(player);
+  } catch (e) {
+    console.warn('[Aetheria] ensureTown: ' + e);
+    return setupGuildTown(player);
+  }
+}
 
-/** Devuelve el centro (x, z) para una nueva casa familiar. */
+/** Devuelve el centro (x, z) para una nueva casa familiar (parcelas dentro de la villa inicial). */
 export function nextHouseSpot() {
-  const w = W();
-  const t = w.town;
-  const i = (t.slots = (t.slots ?? 0) + 1) - 1;
-  wDirty();
-  if (i < SLOTS.length) return { x: t.center.x + SLOTS[i][0], z: t.center.z + SLOTS[i][1] };
-  const ring = Math.floor((i - SLOTS.length) / 10);
-  const a = ((i - SLOTS.length) % 10) * ((Math.PI * 2) / 10) + ring * 0.3;
-  const r = 70 + ring * 18;
-  return { x: Math.round(t.center.x + Math.cos(a) * r), z: Math.round(t.center.z + Math.sin(a) * r) };
+  return settlementHouseSpot();
 }
 
 /** Mantiene al personal del Gremio (cada 10 s). */

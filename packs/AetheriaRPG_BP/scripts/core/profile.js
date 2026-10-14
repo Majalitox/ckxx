@@ -29,13 +29,16 @@ export function stat(d, k) {
   return Math.max(1, 5 + (raceOf(d.race).stats[k] ?? 0) + (d.stats?.[k] ?? 0));
 }
 
+/** Crecimiento a partir del cual se es adolescente. */
+export const TEEN_AT = 0.4;
+
 export function growth(d) {
   return Math.min(1, (d.ageTicks ?? 0) / (Math.max(0.05, cfg('daysToAdult')) * 24000));
 }
 
 export function stageOf(d) {
   const g = growth(d);
-  return g >= 1 ? 'adult' : g >= 0.4 ? 'teen' : 'child';
+  return g >= 1 ? 'adult' : g >= TEEN_AT ? 'teen' : 'child';
 }
 
 export function g(d, m, f) {
@@ -61,14 +64,31 @@ export function stageMult(d) {
   return s === 'child' ? 0.6 : s === 'teen' ? 0.85 : 1;
 }
 
+// Alturas de referencia (humano): niño ≈ 1 bloque, adolescente ≈ 1,25–1,45 bloques, adulto ≈ 2 bloques.
+// El modelo base mide 1,8 bloques, así que la escala de etapa es: niño 0.55→0.62, adolescente 0.70→0.80, adulto 1.11.
+export const STAGE_SCALE = { child: [0.55, 0.62], teen: [0.7, 0.8], adult: [1.11, 1.11] };
+
+/** Escala de etapa (sin raza) según el crecimiento 0..1. */
+export function stageScale(gr) {
+  gr = Math.max(0, Math.min(1, gr ?? 0));
+  if (gr >= 1) return STAGE_SCALE.adult[0];
+  if (gr >= TEEN_AT) {
+    const t = (gr - TEEN_AT) / (1 - TEEN_AT);
+    return STAGE_SCALE.teen[0] + (STAGE_SCALE.teen[1] - STAGE_SCALE.teen[0]) * t;
+  }
+  const t = gr / TEEN_AT;
+  return STAGE_SCALE.child[0] + (STAGE_SCALE.child[1] - STAGE_SCALE.child[0]) * t;
+}
+
+/** Escala del jugador = etapa × factor de raza (sin redondear; passives la ajusta a 30..135, paso 5). */
 export function scaleOf(d) {
-  const s = stageOf(d);
-  const race = raceOf(d.race).scale;
-  if (s === 'adult') return race;
-  const gr = growth(d);
-  // crece de forma progresiva: de 0.55 a 1.0 del tamaño de su raza
-  const f = 0.55 + 0.45 * Math.min(1, gr / 1);
-  return race * f;
+  const race = raceOf(d.race).scale ?? 1;
+  return stageScale(growth(d)) * race;
+}
+
+/** Porcentaje del grupo de escala (rpg:scale_<pct>): 30..135 en pasos de 5. */
+export function scalePct(scale) {
+  return Math.max(30, Math.min(135, Math.round((scale * 100) / 5) * 5));
 }
 
 export function magicRank(d) {

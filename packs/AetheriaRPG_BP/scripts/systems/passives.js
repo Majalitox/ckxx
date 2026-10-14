@@ -3,7 +3,7 @@ import { world } from '@minecraft/server';
 import { getP, dirty } from '../core/store.js';
 import { cfg } from '../core/config.js';
 import { msg, title, addKarma } from '../core/progression.js';
-import { stat, stageOf, scaleOf, ageYears, stageName, isHero, g } from '../core/profile.js';
+import { stat, stageOf, scaleOf, scalePct, ageYears, stageName, isHero, g } from '../core/profile.js';
 import { raceOf } from '../data/races.js';
 import { readRunes } from '../data/items.js';
 import { rk } from '../data/ranks.js';
@@ -26,13 +26,30 @@ export function resetCaches(player) {
   appliedTag.delete(player.id);
 }
 
-export function applyScale(player, d) {
-  const pct = Math.max(30, Math.min(135, Math.round((scaleOf(d) * 100) / 5) * 5));
-  if (appliedScale.get(player.id) === pct) return;
+/** Funciones de otros sistemas (las asigna el integrador o birth.js). */
+export const hooks = {
+  cinematicActive: undefined, // (player) => boolean — hay una cinemática en curso (no tocar el tamaño)
+  recoverCinematic: undefined, // (player) => void — restaura cámara/controles si quedó una cinemática a medias
+};
+
+function inCinematic(player) {
+  try { return player.hasTag('rpg_cinematic'); } catch { return false; }
+}
+
+/** Tamaño del jugador según edad y raza (contrato §1): grupos rpg:scale_30..135, paso 5. */
+export function applyScale(player, d, force = false) {
+  if (inCinematic(player)) return;
+  const pct = scalePct(scaleOf(d));
+  if (!force && appliedScale.get(player.id) === pct) return;
   try {
     player.triggerEvent('rpg:scale_' + pct);
     appliedScale.set(player.id, pct);
   } catch {}
+}
+
+/** Altura aproximada en bloques (para los mensajes de crecimiento). */
+export function heightBlocks(d) {
+  return Math.round(scalePct(scaleOf(d)) * 1.8) / 100;
 }
 
 export function updateNameTag(player, d) {
@@ -59,12 +76,13 @@ export function ageTick(player, d, ticks) {
   d.ageTicks = (d.ageTicks ?? 0) + ticks;
   const after = stageOf(d);
   if (before !== after) {
+    const h = heightBlocks(d).toFixed(1).replace('.', ',');
     if (after === 'teen') {
       title(player, '§d§l¡Has crecido!', `§fAhora eres adolescente (${ageYears(d)} años)`);
-      msg(player, '§d✦ Has crecido y ahora eres §ladolescente§r§d. ¡Ya puedes inscribirte en el Gremio de Aventureros! Habla con la recepcionista.');
+      msg(player, `§d✦ Has crecido y ahora eres §ladolescente§r§d: ya mides unos §f${h} bloques§d. ¡Ya puedes inscribirte en el Gremio de Aventureros! Habla con la recepcionista.`);
     } else if (after === 'adult') {
       title(player, `§6§l¡Eres ${g(d, 'adulto', 'adulta')}!`, `§fHas alcanzado la madurez (${ageYears(d)} años)`);
-      msg(player, `§6✦ ¡Has alcanzado la edad adulta! Tu cuerpo y tu poder están completos. Ya puedes casarte y tu fuerza ya no tiene penalización.`);
+      msg(player, `§6✦ ¡Has alcanzado la edad adulta! Mides unos §f${h} bloques§6, tu cuerpo y tu poder están completos. Ya puedes casarte y tu fuerza ya no tiene penalización.`);
       for (const p of world.getAllPlayers()) if (p.id !== player.id) msg(p, `§7${player.name} ha alcanzado la edad adulta.`);
     }
     psound(player, 'random.levelup', 1, 0.7);
@@ -74,6 +92,13 @@ export function ageTick(player, d, ticks) {
 
 /** Pasivas que se refrescan cada 2 segundos. */
 export function passiveTick(player, d) {
+  if (inCinematic(player)) {
+    // Una cinemática que no está en curso en esta sesión (p. ej. el jugador salió a mitad): restaurar.
+    let active = false;
+    try { active = !!hooks.cinematicActive?.(player); } catch {}
+    if (!active) try { hooks.recoverCinematic?.(player); } catch {}
+    return;
+  }
   applyScale(player, d);
   updateNameTag(player, d);
   const race = d.race;
