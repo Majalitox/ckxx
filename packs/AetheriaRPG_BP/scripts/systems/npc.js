@@ -11,7 +11,7 @@ import { FIRST_NAMES, SURNAMES, ROLE_NAMES, PERSONALITIES, jobLabel, NOBLE_PREFI
 import { GIFT_PREFS, RACE_GIFT_LOVE, LETTERS, ROLE_RESPONSES } from '../data/dialogue.js';
 import {
   JOBS, HAT, TOOL, CLS_INDEX, CLS_NAMES, GUILD_STAFF, WALLET, MERCHANT_WALLET, TAVERN_MENU, ROUND_PRICE,
-  NOBLE_TALK, BEGGAR, ROYAL, GUARD_LAW_INTRO,
+  NOBLE_TALK, BEGGAR, ROYAL, GUARD_LAW_INTRO, BARD_SONG,
 } from '../data/social.js';
 import { LAWS, CRIMES, STRICTNESS_NAMES } from '../data/laws.js';
 import { GOVERNMENTS, STRICTNESS } from '../data/cultures.js';
@@ -116,6 +116,7 @@ export function makeIdentity(opts = {}) {
     job,
     wallet: typeof opts.wallet === 'number' ? opts.wallet : defaultWallet(job, cls),
     homeId: opts.homeId,
+    lv: LOOK_VERSION,
   };
   try { ident.wday = world.getDay(); } catch {}
   for (const k of Object.keys(ident)) if (ident[k] === undefined) delete ident[k];
@@ -254,6 +255,27 @@ export function spawnNpc(dim, loc, ident, persistent = true) {
     applyLook(e, ident);
   }, 2);
   return e;
+}
+
+/** Versión del aspecto/identidad: las identidades de la v1 (sin oficio, clase ni bolsa) se migran al verlas. */
+export const LOOK_VERSION = 2;
+
+/**
+ * Migra un NPC de un mundo de la v1: completa oficio, clase y bolsa, y le aplica el aspecto de la v2
+ * (piel según el esquema raza×16+clase×4+género×2+variante, sombrero, herramienta, altura de 2 bloques
+ * y nombre con oficio). Devuelve la identidad actualizada, o undefined si ya estaba al día.
+ */
+export function upgradeLook(entity, ident) {
+  if (!ident || ident.lv === LOOK_VERSION) return undefined;
+  const job = ident.job ?? ident.role ?? 'aldeano';
+  ident.job = job;
+  ident.role = ident.role ?? job;
+  if (!['baja', 'media', 'alta'].includes(ident.cls)) ident.cls = defaultCls(job, {});
+  if (typeof ident.wallet !== 'number') ident.wallet = defaultWallet(job, ident.cls);
+  ident.lv = LOOK_VERSION;
+  saveIdent(entity, ident);
+  applyLook(entity, ident);
+  return ident;
 }
 
 /** NPCs que aparecen de forma natural (aventureros errantes) reciben identidad al cargar. */
@@ -407,6 +429,7 @@ async function npcMenu(player, entity) {
   if (life.canServe(player, ident)) list.push({ text: '§6Servir una jarra', icon: 'textures/items/potion_bottle_empty', fn: () => life.serveDrink(player, ident, entity) });
   if (job === 'mendigo') list.push({ text: '§eDar limosna', icon: 'textures/items/gold_nugget', fn: () => almsMenu(player, ident, entity) });
   if (job === 'noble') list.push({ text: '§6Conversar sobre la corte', icon: 'textures/items/book_normal', fn: () => nobleTalk(player, ident, entity) });
+  if (job === 'bardo') list.push({ text: '§dPedir una canción', icon: 'textures/items/record_cat', fn: () => bardSong(player, ident, entity) });
   if (job === 'rey') list.push({ text: '§6§lAudiencia real', icon: 'textures/items/gold_ingot', fn: () => royalAudience(player, ident, entity) });
   if (isGuardJob(job)) list.push({ text: '§9Preguntar por la ley', icon: 'textures/items/paper', fn: () => lawInfo(player, ident, entity) });
   if (role === 'sacerdotisa' || job === 'sacerdote') list.push({ text: '§e✟ Servicios del templo', icon: 'textures/items/totem', fn: () => temple(player) });
@@ -855,6 +878,68 @@ async function nobleTalk(player, ident, entity) {
   lines = [...new Set(lines)].map((l) => sayTo(player, d, ident, l, v).replace(/\s+/g, ' ').trim());
   if (entity && valid(entity)) life.say(entity, lines[0], 4);
   await info(player, `§l§6${NOBLE_PREFIX[ident.gender === 'f' ? 'f' : 'm']} ${ident.name}`, lines.map((l) => `§f"${l}"`).join('\n\n'));
+}
+
+/** Gesta en tercera persona para una copla: "derrotó a la Reina Araña", "es la aventurera de rango B". */
+function songDeed(glory) {
+  const who = String(glory?.who ?? '');
+  if (!who) return undefined;
+  return who.startsWith('quien ') ? who.slice(6) : 'es ' + who;
+}
+
+/** Fechoría en tercera persona: "Cometiste hurto en X" → "cometió hurto en X". */
+function songShame(shame) {
+  const t = String(shame?.text ?? '');
+  const map = [[/^Cometiste /, 'cometió '], [/^Fuiste /, 'fue '], [/^Te fugaste /, 'se fugó '], [/^Robaste /, 'robó '], [/^Mataste /, 'mató ']];
+  for (const [re, to] of map) if (re.test(t)) return t.replace(re, to);
+  return 'tiene un pasado turbio';
+}
+
+/** El bardo compone una copla sobre ti: tus gestas, tu clase y, si las hay, tus fechorías. */
+async function bardSong(player, ident, entity) {
+  const d = getP(player);
+  if (!d) return;
+  const rel = relOf(d, ident);
+  const today = world.getDay();
+  const place = placeOfIdent(ident, player);
+  const v = { c: BARD_SONG.tip, asentamiento: place.s?.name ?? 'estas tierras', heroe: g(d, 'héroe', 'heroína') };
+  if (rel.song === today) return info(player, `§l${ident.name}`, `§f"${sayTo(player, d, ident, pick(BARD_SONG.again), v)}"`);
+  const ok = await confirm(player, `§l§d${ident.name} · Canción`, `§f"${sayTo(player, d, ident, pick(BARD_SONG.ask), v)}"\n§7Tu oro: §6${d.gold}`, `§6Dar ${BARD_SONG.tip} oro`, '§cAhora no');
+  if (!ok) return;
+  if (!spendGold(player, BARD_SONG.tip)) return info(player, `§l${ident.name}`, '§f¿Sin blanca? Pues te canto gratis... otro día.');
+  economy.walletAdd(entity, ident, BARD_SONG.tip);
+  rel.song = today;
+  changeRel(player, d, rel, 4);
+  const realm = place.realm;
+  const glory = social.lastGlory(d, realm?.id);
+  const shame = social.lastShame(d);
+  const pc = social.playerClass(d);
+  const verses = [pick(BARD_SONG.open)];
+  verses.push(glory ? pick(BARD_SONG.glory).replace('{hazana}', songDeed(glory)) : pick(BARD_SONG.unknown));
+  verses.push(BARD_SONG.cls[pc.rank] ?? BARD_SONG.cls[1]);
+  if (shame && social.infamy(d, realm?.id) >= 30) verses.push(pick(BARD_SONG.shame).replace('{verguenza}', songShame(shame)));
+  verses.push(pick(BARD_SONG.close));
+  const song = verses.map((x) => sayTo(player, d, ident, x, v));
+  psound(player, 'note.harp', 0.8, 1.2);
+  songNotes(entity);
+  if (entity && valid(entity)) life.say(entity, song[0], 5);
+  // El público aplaude.
+  try {
+    const near = player.dimension.getEntities({ type: NPC_TYPE, location: player.location, maxDistance: 12, excludeTags: ['rpg_busy'] })
+      .filter((e) => e.id !== entity?.id).slice(0, 3);
+    near.forEach((e, i) => system.runTimeout(() => { try { if (valid(e)) life.say(e, sayTo(player, d, identOf(e) ?? ident, pick(BARD_SONG.cheer), v), 3); } catch {} }, 40 + i * 15));
+  } catch {}
+  await info(player, `§l§d♪ La copla de ${player.name} ♪`, song.map((x) => '§f' + x).join('\n\n') + `\n\n§7${ident.name} hace una reverencia. §d+relación`);
+}
+
+/** Notas musicales sobre el bardo mientras canta. */
+function songNotes(entity) {
+  if (!entity || !valid(entity)) return;
+  for (let i = 0; i < 4; i++) {
+    system.runTimeout(() => {
+      try { if (valid(entity)) particle(entity.dimension, 'minecraft:note_particle', { x: entity.location.x + (Math.random() - 0.5), y: entity.location.y + 2.2, z: entity.location.z + (Math.random() - 0.5) }); } catch {}
+    }, i * 8);
+  }
 }
 
 function realmFor(ident, player) {

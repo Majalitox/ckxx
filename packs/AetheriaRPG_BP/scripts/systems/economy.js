@@ -283,7 +283,8 @@ async function haggleRound(player, ident, d, v, ask, round, mode) {
   const vals = r.formValues;
   if (vals.some((x) => x === true)) return { accept: true };
   const text = String(vals.find((x) => typeof x === 'string') ?? '').trim();
-  if (!text || NO.test(text)) return { walk: true };
+  if (!text) return { empty: true };
+  if (NO.test(text)) return { walk: true };
   if (YES.test(text)) return { accept: true };
   const o = parseOffer(text);
   if (o === undefined) return { walk: true };
@@ -324,10 +325,17 @@ export async function haggle(player, merchantIdent, basePrice, mode = 'buy', opt
   const insultSell = Math.ceil(Math.max(base * (1 + flex) * 1.6, base * 2));
   v.line = say(ident, d, pick(sell ? HAGGLE.open_sell : HAGGLE.open_buy), { ...v, precio: ask });
   let deal;
+  let empties = 0;
   for (let round = 1; round <= 3 && deal === undefined; round++) {
     if (!valid(player)) return undefined;
     const res = await haggleRound(player, ident, d, v, ask, round, mode);
-    if (res.walk) {
+    if (res.empty && ++empties <= 1) {
+      // Enviado sin cifra ni aceptar: el mercader insiste una vez, sin gastar ronda.
+      v.line = say(ident, d, pick(HAGGLE.nudge), { ...v, precio: ask });
+      round--;
+      continue;
+    }
+    if (res.walk || res.empty) {
       msg(player, `§e[${ident.name}] §f${say(ident, d, pick(HAGGLE.walk), v)}`);
       return undefined;
     }
@@ -699,6 +707,19 @@ export function onEntityHurt(ev) {
 export function activeTheft(player) {
   for (const t of thefts.values()) if (t.pid === player.id) return t;
   return undefined;
+}
+
+/**
+ * Línea para el HUD mientras un carterista huye con tu bolsa: nombre, segundos para atraparlo, distancia
+ * y oro robado. Cadena vacía si no hay robo en curso.
+ */
+export function theftHud(player) {
+  const t = activeTheft(player);
+  if (!t || !valid(t.e)) return '';
+  const left = Math.max(0, Math.ceil((t.until - system.currentTick) / 20));
+  let m = '?';
+  try { m = String(Math.round(dist(player.location, t.e.location))); } catch {}
+  return `§c¡Al ladrón! §f${t.name} §7· §e${left} s §7· §f${m} m §7· §6 ${t.gold}`;
 }
 
 /** Al salir un jugador: cancelar acechos. */

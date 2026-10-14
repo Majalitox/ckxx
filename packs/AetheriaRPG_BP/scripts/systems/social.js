@@ -233,7 +233,7 @@ export function playerClass(d) {
   if (inf >= OVERLAYS.temido.minInfamy && inf > fm) overlay = OVERLAYS.temido;
   const overlayName = overlay ? overlay.name[d.gender === 'f' ? 1 : 0] : undefined;
   return {
-    id: c.id, rank, name, c: c.c, desc: c.desc,
+    id: c.id, rank, name, c: c.c, desc: genderize(c.desc, d.gender, d.gender),
     overlay: overlay?.id, overlayName,
     label: `${c.c}${name}${overlay ? ` §7· ${overlay.c}${overlayName}` : ''}§r`,
   };
@@ -422,8 +422,20 @@ export function lastShame(d) {
 /* Adaptadores para los ganchos del integrador (hazañas automáticas)     */
 /* ------------------------------------------------------------------ */
 
+const recentDeeds = new Map(); // pid|clave -> tick (evita contar dos veces el mismo suceso si llega por dos ganchos)
+
+function once(player, key, ticks = 200) {
+  const k = player.id + '|' + key;
+  const now = system.currentTick;
+  if (now - (recentDeeds.get(k) ?? -1e9) < ticks) return false;
+  recentDeeds.set(k, now);
+  if (recentDeeds.size > 500) recentDeeds.clear();
+  return true;
+}
+
 /** Jefe derrotado (bossId = typeId de data/mobs.js BOSSES). */
 export function deedForBoss(player, bossId) {
+  if (!once(player, 'boss:' + bossId)) return false;
   const b = BOSSES[bossId];
   return recordDeed(player, 'boss', { name: b?.name ?? 'un jefe temible', key: bossId, fame: 30 + (b?.rank ?? 2) * 15 });
 }
@@ -431,6 +443,7 @@ export function deedForBoss(player, bossId) {
 /** Mazmorra limpiada (rango 0..8). */
 export function deedForDungeon(player, rank) {
   const r = Math.max(0, Math.min(8, Number(rank) || 0));
+  if (!once(player, 'dg:' + r)) return false;
   return recordDeed(player, 'dungeon', { rank: RANKS[r] ?? '?', key: 'dg' + r + ':' + system.currentTick, fame: 10 + r * 6 });
 }
 
@@ -442,6 +455,7 @@ export function deedForGuildRank(player, rank) {
 
 /** Incursión defendida (settlements.hooks.onRaidDefended). */
 export function deedForRaid(player, s) {
+  if (!once(player, 'raid:' + (s?.id ?? ''), 600)) return false;
   return addDeed(player, deed('raid', { place: s?.name ?? 'la aldea', realmId: s?.realmId, key: (s?.id ?? '') + ':' + system.currentTick }));
 }
 

@@ -29,6 +29,13 @@ function isValid(e) {
   try { return !!e && e.isValid; } catch { return false; }
 }
 
+/** Diagnóstico (pruebas): errores capturados dentro del bucle y contadores. */
+export const stats = { errors: 0, lastError: undefined, launched: 0, hits: 0, blockHits: 0 };
+function fail(e) {
+  stats.errors++;
+  stats.lastError = e;
+}
+
 /* ------------------------------------------------------------------ */
 /* Partículas con presupuesto                                           */
 /* ------------------------------------------------------------------ */
@@ -149,6 +156,35 @@ export function pillar(dim, base, height, rgb, step = 0.5) {
   line(dim, base, { x: base.x, y: base.y + height, z: base.z }, rgb, step, 'rpg:spark', 40);
 }
 
+/** Relámpago visual (sin entidad vanilla: no quema ni convierte aldeanos) que cae del cielo sobre `ground`. */
+export function lightning(dim, ground, rgb = [1, 0.95, 0.4], height = 14) {
+  const top = { x: ground.x + (Math.random() - 0.5) * 2.5, y: ground.y + height, z: ground.z + (Math.random() - 0.5) * 2.5 };
+  arc(dim, top, ground, rgb, 0.9);
+  // rama secundaria
+  const mid = vlerp(top, ground, 0.45 + Math.random() * 0.2);
+  arc(dim, mid, { x: mid.x + (Math.random() - 0.5) * 4, y: ground.y + 0.5, z: mid.z + (Math.random() - 0.5) * 4 }, rgb, 0.6);
+  px(dim, 'rpg:fx_rayo', ground, undefined, true);
+  px(dim, 'rpg:burst', { x: ground.x, y: ground.y + 0.4, z: ground.z }, rgb, true);
+}
+
+/** Torbellino: espiral ascendente alrededor de un punto (dominios de viento/agua, tornados). */
+export function vortex(dim, c, r, rgb, height = 2.5, n = 12, phase = 0) {
+  for (let i = 0; i < n; i++) {
+    const t = i / n;
+    const a = phase + t * Math.PI * 4;
+    const rr = r * (0.35 + 0.65 * t);
+    if (!px(dim, 'rpg:spark', { x: c.x + Math.cos(a) * rr, y: c.y + 0.1 + t * height, z: c.z + Math.sin(a) * rr }, rgb)) break;
+  }
+}
+
+/** Anillo que sube desde los pies (lanzamientos de nivel alto). */
+export function risingRing(dim, c, r, rgb, steps = 4, every = 2) {
+  repeat(steps, every, (i) => {
+    ring(dim, { x: c.x, y: c.y + i * 0.45, z: c.z }, r * (1 - i * 0.12), rgb, 10 + r * 4, 'rpg:spark', 0.1);
+    return true;
+  });
+}
+
 /* ------------------------------------------------------------------ */
 /* Cámara, títulos y sonido                                             */
 /* ------------------------------------------------------------------ */
@@ -257,15 +293,37 @@ export function segmentHitsBody(a, b, body, size = 0.3) {
   return undefined;
 }
 
-/** Bloque sólido en el rayo (undefined si no hay; null si no se puede consultar). */
+/** Bloque sólido en el rayo (undefined si no hay; null si no se puede consultar: chunk sin cargar / fuera del mundo). */
 export function rayBlock(dim, from, dir, maxDistance) {
+  if (!(maxDistance > 0)) return undefined;
   try {
     const hit = dim.getBlockFromRay(from, dir, { maxDistance, includeLiquidBlocks: false, includePassableBlocks: false });
     if (!hit) return undefined;
+    // faceLocation es relativa a la esquina noroeste inferior del bloque
     const p = vadd(hit.block.location, hit.faceLocation ?? { x: 0.5, y: 0.5, z: 0.5 });
     // separa un poco el punto de la cara para no dibujar dentro del bloque
     return { block: hit.block, point: vsub(p, vmul(dir, 0.15)) };
-  } catch { return null; }
+  } catch {
+    return sampleBlocks(dim, from, dir, maxDistance);
+  }
+}
+
+/** Alternativa a getBlockFromRay: muestrea bloques cada 0,25 a lo largo del rayo. */
+function sampleBlocks(dim, from, dir, maxDistance) {
+  const n = Math.min(64, Math.ceil(maxDistance / 0.25));
+  let lastKey = '';
+  for (let i = 1; i <= n; i++) {
+    const t = (i / n) * maxDistance;
+    const p = { x: from.x + dir.x * t, y: from.y + dir.y * t, z: from.z + dir.z * t };
+    const key = `${Math.floor(p.x)},${Math.floor(p.y)},${Math.floor(p.z)}`;
+    if (key === lastKey) continue;
+    lastKey = key;
+    let b;
+    try { b = dim.getBlock(p); } catch { return null; }
+    if (!b) return null; // chunk sin cargar
+    if (isSolid(b)) return { block: b, point: vsub(p, vmul(dir, 0.2)) };
+  }
+  return undefined;
 }
 
 /** Suelo bajo un punto (y del primer bloque sólido + 1) o el propio y si no se encuentra. */
@@ -315,25 +373,30 @@ function loop() {
   for (let i = 0; i < projectiles.length; i++) {
     const p = projectiles[i];
     if (p.dead) continue;
-    try { stepProjectile(p); } catch { p.dead = true; }
+    try { stepProjectile(p); } catch (e) { p.dead = true; fail(e); }
   }
   for (let i = projectiles.length - 1; i >= 0; i--) if (projectiles[i].dead) projectiles.splice(i, 1);
   if (auras.size && now % 5 === 0) {
-    try { auraTick(now); } catch {}
+    try { auraTick(now); } catch (e) { fail(e); }
   }
   if (tickers.size) {
     for (const [k, t] of [...tickers]) {
-      if (now < t.next) continue;
+      if (now < t.next || tickers.get(k) !== t) continue;
       t.next = now + t.every;
       let keep = true;
-      try { keep = t.fn(now); } catch { keep = false; }
-      if (keep === false) tickers.delete(k);
+      try { keep = t.fn(now); } catch (e) { keep = false; fail(e); }
+      if (keep === false && tickers.get(k) === t) tickers.delete(k);
     }
   }
   if (!projectiles.length && !auras.size && !tickers.size) {
     try { system.clearRun(loopId); } catch {}
     loopId = undefined;
   }
+}
+
+/** Detiene un ticker registrado. */
+export function stopTicker(key) {
+  tickers.delete(key);
 }
 
 /** Registra una función periódica (cada `every` ticks) mientras devuelva algo distinto de false. */
@@ -354,7 +417,7 @@ export function repeat(times, every, fn) {
   try {
     id = system.runInterval(() => {
       let r;
-      try { r = fn(n); } catch { r = false; }
+      try { r = fn(n); } catch (e) { r = false; fail(e); }
       n++;
       if (n >= times || r === false) { try { system.clearRun(id); } catch {} }
     }, Math.max(1, every));
@@ -364,7 +427,7 @@ export function repeat(times, every, fn) {
 
 /** Ejecuta fn tras `ticks` ticks (protegido). */
 export function later(ticks, fn) {
-  try { return system.runTimeout(() => { try { fn(); } catch {} }, Math.max(1, Math.floor(ticks))); } catch { return undefined; }
+  try { return system.runTimeout(() => { try { fn(); } catch (e) { fail(e); } }, Math.max(1, Math.floor(ticks))); } catch { return undefined; }
 }
 
 export function cancel(id) {
@@ -380,7 +443,7 @@ export function cancel(id) {
  *       scale, maxLife }
  */
 export function launch(o) {
-  if (!o || !o.dim || !o.from || !o.dir) return undefined;
+  if (!o || !o.dim || !o.from || !o.dir || !(vlen(o.dir) > 1e-6)) return undefined;
   if (o.ownerId) {
     const mine = projectiles.filter((p) => !p.dead && p.ownerId === o.ownerId);
     if (mine.length >= MAX_PER_OWNER) mine[0].dead = true;
@@ -394,6 +457,7 @@ export function launch(o) {
   };
   p.pierceLeft = p.pierce;
   projectiles.push(p);
+  stats.launched++;
   px(p.dim, 'rpg:burst', p.from, p.rgb);
   ensureLoop();
   return p;
@@ -403,7 +467,7 @@ function endProjectile(p, callEnd) {
   if (p.dead) return;
   p.dead = true;
   if (callEnd && p.onEnd) {
-    try { p.onEnd(p.pos, p); } catch {}
+    try { p.onEnd(p.pos, p); } catch (e) { fail(e); }
   }
 }
 
@@ -461,7 +525,8 @@ function stepProjectile(p) {
   for (const h of hits) {
     if (p.dead) return;
     p.hitIds.add(h.e.id);
-    try { p.onHit?.(h.e, h.point, p); } catch {}
+    stats.hits++;
+    try { p.onHit?.(h.e, h.point, p); } catch (e) { fail(e); }
     if (p.pierceLeft <= 0) {
       drawTrail(p, p.pos, h.point);
       p.pos = h.point;
@@ -476,16 +541,33 @@ function stepProjectile(p) {
   p.checkFrom = stop;
   if (blockHit) {
     p.blockHit = blockHit.block;
+    stats.blockHits++;
     return endProjectile(p, true);
   }
   if (p.traveled >= p.range - 0.01) endProjectile(p, true);
 }
 
+let excludeBroken = false;
+/**
+ * dim.getEntities con excludeTypes; si el motor rechaza la consulta (p. ej. un identificador de entidad que
+ * aún no existe en el paquete), repite sin excludeTypes y filtra en JavaScript (y lo recuerda).
+ */
+export function queryEntities(dim, opts) {
+  if (!dim) return [];
+  if (opts.excludeTypes && !excludeBroken) {
+    try { return dim.getEntities(opts); } catch { excludeBroken = true; }
+  }
+  const { excludeTypes, ...rest } = opts;
+  let list;
+  try { list = dim.getEntities(rest); } catch { return []; }
+  if (!excludeTypes) return list;
+  return list.filter((e) => { try { return !excludeTypes.includes(e.typeId); } catch { return false; } });
+}
+
 function entitiesOnSegment(p, a, b) {
   const mid = vlerp(a, b, 0.5);
   const half = vlen(vsub(b, a)) / 2;
-  let list = [];
-  try { list = p.dim.getEntities({ location: mid, maxDistance: half + 3.5 + p.size, excludeTypes: EXCLUDE_TYPES }); } catch { return []; }
+  const list = queryEntities(p.dim, { location: mid, maxDistance: half + 3.5 + p.size, excludeTypes: EXCLUDE_TYPES });
   const out = [];
   for (const e of list) {
     try {

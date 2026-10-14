@@ -25,9 +25,11 @@ export const TIER_NAMES = ['I · Novicio', 'II · Adepto', 'III · Experto', 'IV
 const TIER_LEVEL = [1, 10, 25, 45, 70];
 const TIER_STEP = [0.8, 1.2, 1.6, 2.0, 2.5];
 const TIER_RANK = [0, 2, 4, 6, 7]; // F, D, B, S, SS
-// Curvas de equilibrio (v2): los primeros hechizos son baratos y contundentes; el nivel V es
-// espectacular pero caro y con recarga larga para que no gane un combate de un solo golpe.
-const TIER_POWER = [6, 10, 16, 25, 38];
+// Curvas de equilibrio (v2): los primeros hechizos son baratos y contundentes (un zombi cae con
+// 3 proyectiles de nivel I); el nivel V es espectacular pero caro y con recarga larga para que no
+// gane un combate de un solo golpe (además, systems/magic.js limita el daño por impacto contra jefes
+// y la Inteligencia escala con rendimientos decrecientes).
+const TIER_POWER = [7, 11, 17, 26, 38];
 const TIER_MANA = [0.75, 1.5, 2.3, 3.2, 4.2];
 const TIER_CD = [1, 1.12, 1.25, 1.4, 1.6];
 /** Ramas "definitivas": en el nivel V su recarga se alarga un 25 %. */
@@ -112,20 +114,74 @@ export const ELEMENTS = {
 /* Datos visuales/sonoros por elemento (v2)                             */
 /* ------------------------------------------------------------------ */
 // statusId: estado que deja el elemento. trail: partícula vanilla que acompaña al proyectil.
-// impact: sonido del impacto. shout: grito al lanzar un hechizo de nivel V.
+// impact/cast: sonidos. orbScale: tamaño visual del orbe.
+// proj: estilo del proyectil (rama Proyectil) que interpreta systems/magic.js:
+//   speedMul (× velocidad), size (radio de colisión), gravity (caída por tick), homing (fuerza del
+//   autoapuntado), count/spread/share (varios proyectiles en abanico, grados y fracción de daño de cada uno),
+//   stagger (ticks entre proyectiles), pierce (enemigos que atraviesa), splash/splashMul (salpicadura),
+//   knock (empuje extra), noun/trait (texto para la descripción).
+// zone: efecto especial de su Dominio. rain: lo que cae del cielo en su Cataclismo.
 const ELEMENT_EXTRA = {
-  fuego: { statusId: 'ardiendo', trail: 'minecraft:basic_flame_particle', impact: 'mob.ghast.fireball', cast: 'mob.blaze.shoot', orbScale: 1.1 },
-  agua: { statusId: 'mojado', trail: 'minecraft:water_evaporation_bucket_emitter', impact: 'random.splash', cast: 'bucket.empty_water', orbScale: 1.0 },
-  tierra: { statusId: 'aturdido', trail: 'minecraft:knockback_roar_particle', impact: 'dig.stone', cast: 'dig.gravel', orbScale: 1.2 },
-  viento: { statusId: 'desequilibrado', trail: undefined, impact: 'mob.enderdragon.flap', cast: 'mob.enderdragon.flap', orbScale: 0.9 },
-  rayo: { statusId: 'electrizado', trail: 'minecraft:electric_spark_particle', impact: 'random.fizz', cast: 'ambient.weather.lightning.impact', orbScale: 0.9 },
-  hielo: { statusId: 'congelado', trail: 'minecraft:snowflake_particle', impact: 'random.glass', cast: 'random.glass', orbScale: 1.0 },
-  luz: { statusId: 'radiante', trail: 'minecraft:totem_particle', impact: 'random.orb', cast: 'beacon.activate', orbScale: 1.0 },
-  oscuridad: { statusId: 'maldito', trail: 'minecraft:portal_reverse_particle', impact: 'mob.endermen.portal', cast: 'mob.endermen.portal', orbScale: 1.0 },
-  necromancia: { statusId: 'marchito', trail: 'minecraft:soul_particle', impact: 'mob.wither.hurt', cast: 'mob.wither.shoot', orbScale: 1.0 },
-  naturaleza: { statusId: 'envenenado', trail: 'minecraft:villager_happy', impact: 'dig.grass', cast: 'block.sweet_berry_bush.place', orbScale: 0.9 },
-  arcano: { statusId: 'inestable', trail: 'minecraft:enchanting_table_particle', impact: 'mob.evocation_illager.cast_spell', cast: 'mob.evocation_illager.cast_spell', orbScale: 1.0 },
-  sangre: { statusId: 'sangrando', trail: 'minecraft:critical_hit_emitter', impact: 'mob.ravager.bite', cast: 'mob.ravager.bite', orbScale: 1.0 },
+  fuego: {
+    statusId: 'ardiendo', trail: 'minecraft:basic_flame_particle', impact: 'mob.ghast.fireball', cast: 'mob.blaze.shoot', orbScale: 1.15,
+    proj: { speedMul: 1.0, size: 0.4, splash: 1.6, splashMul: 0.35, noun: 'una bola de fuego', trait: 'Estalla al impactar y salpica llamas a su alrededor.' },
+    zone: 'las llamas queman todo lo que pisa el círculo', rain: 'meteoritos en llamas',
+  },
+  agua: {
+    statusId: 'mojado', trail: 'minecraft:water_evaporation_bucket_emitter', impact: 'random.splash', cast: 'bucket.empty_water', orbScale: 1.0,
+    proj: { speedMul: 1.1, gravity: 0.012, knock: 0.35, noun: 'una bala de agua a presión', trait: 'Describe una ligera parábola y empuja al objetivo.' },
+    zone: 'un remolino arrastra a los enemigos hacia el centro', rain: 'trombas de agua',
+  },
+  tierra: {
+    statusId: 'aturdido', trail: 'minecraft:knockback_roar_particle', impact: 'dig.stone', cast: 'dig.gravel', orbScale: 1.3,
+    proj: { speedMul: 0.8, gravity: 0.03, size: 0.5, knock: 0.8, noun: 'una roca', trait: 'Es lenta y cae en parábola, pero golpea con mucha fuerza.' },
+    zone: 'el suelo se agrieta y frena a los enemigos', rain: 'rocas gigantes',
+  },
+  viento: {
+    statusId: 'desequilibrado', trail: undefined, impact: 'mob.enderdragon.flap', cast: 'mob.enderdragon.flap', orbScale: 0.9,
+    proj: { speedMul: 1.35, size: 0.3, pierce: 1, knock: 0.5, noun: 'una cuchilla de aire', trait: 'Es muy rápida y atraviesa a un enemigo.' },
+    zone: 'un torbellino atrae a los enemigos y los zarandea', rain: 'cuchillas de viento',
+  },
+  rayo: {
+    statusId: 'electrizado', trail: 'minecraft:electric_spark_particle', impact: 'random.fizz', cast: 'ambient.weather.lightning.impact', orbScale: 0.9,
+    proj: { speedMul: 1.7, size: 0.3, noun: 'una centella', trait: 'Es el proyectil más veloz y la descarga salta a enemigos cercanos.' },
+    zone: 'descargas saltan entre los enemigos atrapados', rain: 'relámpagos',
+  },
+  hielo: {
+    statusId: 'congelado', trail: 'minecraft:snowflake_particle', impact: 'random.glass', cast: 'random.glass', orbScale: 1.0,
+    proj: { count: 3, spread: 5, share: 0.45, size: 0.3, noun: '3 esquirlas de hielo en abanico', trait: 'Cada esquirla inflige el 45 % del daño.' },
+    zone: 'la escarcha ralentiza a todo el que entra', rain: 'carámbanos gigantes',
+  },
+  luz: {
+    statusId: 'radiante', trail: 'minecraft:totem_particle', impact: 'random.orb', cast: 'beacon.activate', orbScale: 1.0,
+    proj: { homing: 0.25, noun: 'un orbe sagrado', trait: 'Persigue al enemigo con fuerza.' },
+    zone: 'cura a los aliados que estén dentro', rain: 'lanzas de luz',
+  },
+  oscuridad: {
+    statusId: 'maldito', trail: 'minecraft:portal_reverse_particle', impact: 'mob.endermen.portal', cast: 'mob.endermen.portal', orbScale: 1.1,
+    proj: { speedMul: 0.85, size: 0.45, homing: 0.18, noun: 'una esfera de sombra', trait: 'Lenta pero persistente: sigue a su presa.' },
+    zone: 'la oscuridad ciega a quien quede dentro', rain: 'esferas del vacío',
+  },
+  necromancia: {
+    statusId: 'marchito', trail: 'minecraft:soul_particle', impact: 'mob.wither.hurt', cast: 'mob.wither.shoot', orbScale: 1.0,
+    proj: { speedMul: 0.95, homing: 0.15, noun: 'una calavera espectral', trait: 'Persigue al enemigo y te devuelve parte de la vida robada.' },
+    zone: 'las almas drenan la vida de los enemigos para ti', rain: 'calaveras malditas',
+  },
+  naturaleza: {
+    statusId: 'envenenado', trail: 'minecraft:villager_happy', impact: 'dig.grass', cast: 'block.sweet_berry_bush.place', orbScale: 0.9,
+    proj: { count: 2, spread: 6, share: 0.6, size: 0.3, noun: '2 espinas venenosas', trait: 'Cada espina inflige el 60 % del daño.' },
+    zone: 'las raíces atrapan a los enemigos', rain: 'semillas explosivas',
+  },
+  arcano: {
+    statusId: 'inestable', trail: 'minecraft:enchanting_table_particle', impact: 'mob.evocation_illager.cast_spell', cast: 'mob.evocation_illager.cast_spell', orbScale: 1.0,
+    proj: { count: 3, stagger: 3, homing: 0.3, share: 0.38, speedMul: 0.9, size: 0.3, noun: '3 misiles arcanos', trait: 'Salen uno tras otro y buscan al enemigo; cada uno inflige el 38 % del daño.' },
+    zone: 'las runas hacen levitar a los enemigos', rain: 'cometas arcanos',
+  },
+  sangre: {
+    statusId: 'sangrando', trail: 'minecraft:critical_hit_emitter', impact: 'mob.ravager.bite', cast: 'mob.ravager.bite', orbScale: 1.0,
+    proj: { speedMul: 1.25, size: 0.3, noun: 'una aguja de sangre', trait: 'Veloz; te devuelve parte de la vida robada.' },
+    zone: 'el charco carmesí desangra a los enemigos y te alimenta', rain: 'dagas de sangre',
+  },
 };
 for (const [id, x] of Object.entries(ELEMENT_EXTRA)) Object.assign(ELEMENTS[id], x, { fx: 'rpg:fx_' + id });
 
@@ -318,6 +374,36 @@ export function getSkill(elementId, idx) {
 }
 
 const DAMAGING = new Set(['bolt', 'nova', 'curse', 'lance', 'zone', 'rain']);
+/** Elementos cuya Potenciación crea además un aura que daña a los enemigos cercanos (systems/magic.js). */
+export const OFFENSIVE_AURA = new Set(['fuego', 'rayo', 'hielo', 'oscuridad', 'necromancia', 'sangre', 'viento']);
+const HEALERS = new Set(['luz', 'agua', 'naturaleza']);
+const EFFECT_NAMES = {
+  strength: 'Fuerza', fire_resistance: 'Resistencia al fuego', regeneration: 'Regeneración', water_breathing: 'Respiración acuática',
+  resistance: 'Resistencia', health_boost: 'Vida extra', speed: 'Velocidad', jump_boost: 'Salto', slow_falling: 'Caída lenta',
+  haste: 'Prisa', absorption: 'Absorción', night_vision: 'Visión nocturna', invisibility: 'Invisibilidad', saturation: 'Saturación',
+};
+
+/** Elemento con artículo ("el fuego", "la luz"...). */
+const WITH_ARTICLE = {
+  fuego: 'el fuego', agua: 'el agua', tierra: 'la tierra', viento: 'el viento', rayo: 'el rayo', hielo: 'el hielo', luz: 'la luz',
+  oscuridad: 'la oscuridad', necromancia: 'la necromancia', naturaleza: 'la naturaleza', arcano: 'la magia arcana', sangre: 'la sangre',
+};
+
+function boltText(el, s, st, eln) {
+  const p = el.proj ?? {};
+  const many = (p.count ?? 1) > 1;
+  const noun = p.noun ?? `un orbe de ${eln}`;
+  let t = `Dispara ${noun} desde tu mano hacia donde apuntas (alcance ${s.range}). ` +
+    (many ? 'Vuelan de verdad: chocan con los muros y se curvan' : 'Vuela de verdad: choca con los muros y se curva') +
+    ` suavemente hacia el enemigo más cercano a tu mira. ${many ? 'Potencia total' : 'Daño'} ~${s.power}; además, ${st}.`;
+  if (p.trait) t += ' ' + p.trait;
+  if (s.tier >= 3) t += ' A este nivel estalla al impactar y salpica a los enemigos cercanos.';
+  return t;
+}
+
+function spirits(n, eln) {
+  return n === 1 ? `un espíritu de ${eln} que te sigue, reaparece a tu lado si te alejas y ataca` : `${n} espíritus de ${eln} que te siguen, reaparecen a tu lado si te alejas y atacan`;
+}
 
 function describe(el, s) {
   const st = STATUS_TEXT[el.status];
@@ -325,18 +411,26 @@ function describe(el, s) {
   const eln = el.name.toLowerCase();
   let main = '';
   switch (s.kind) {
-    case 'bolt': main = `Dispara un orbe de ${eln} que vuela hacia donde apuntas (alcance ${s.range}, se curva levemente hacia el enemigo más cercano) e inflige ~${s.power} de daño; ${st}.${s.tier >= 3 ? ' Al impactar estalla y salpica a los enemigos cercanos.' : ''}`; break;
-    case 'nova': main = `Libera una onda expansiva de ${eln} a tu alrededor (radio ${s.radius}) que inflige ~${s.power}, empuja y ${st}.`; break;
-    case 'buff': main = `Te envuelve en un aura de ${eln}: ${el.buff.map((b) => b[0].replace(/_/g, ' ')).join(', ')} de nivel ${s.tier + 1} durante ${secs} s.`; break;
-    case 'curse': main = `Maldice a los enemigos frente a ti (cono, alcance ${s.range}): ${st} con gran intensidad durante ${secs} s y deja un estado prolongado.`; break;
-    case 'lance': main = `Dispara un haz veloz que atraviesa a todos los enemigos en línea (alcance ${s.range}), ~${s.power} de daño a cada uno.`; break;
-    case 'zone': main = `Crea un dominio de ${eln} (radio ${s.radius}) marcado por un anillo visible durante ${secs} s; daña continuamente y ${st}.`; break;
-    case 'ward': main = `Te protege con absorción y te cura ~${Math.round(s.power * 3 + 4)} de vida${['luz', 'agua', 'naturaleza'].includes(s.element) ? ' (también a aliados cercanos)' : ''}${['necromancia', 'sangre'].includes(s.element) ? '; además drena la vida de los enemigos cercanos' : ''}.`; break;
-    case 'step': main = el.step === 'blink' ? `Te teletransporta hasta ${s.range} bloques hacia donde miras.` : el.step === 'leap' ? `Un gran salto impulsado por ${eln}${s.element === 'tierra' ? '; al aterrizar provoca un temblor' : s.element === 'viento' ? '; al aterrizar suelta una ráfaga' : ''}.` : 'Una embestida veloz que daña a quien atravieses.'; break;
-    case 'summon': main = `Invoca ${s.count} espíritu(s) de ${eln} que te siguen y atacan a lo que tú golpeas durante ${secs} s${['luz', 'agua', 'naturaleza'].includes(s.element) ? '; además te curan cada pocos segundos' : ''}.`; break;
-    case 'rain': main = `Desata ${s.strikes} impactos de ${eln} que caen del cielo sobre la zona objetivo (radio ${s.radius}), ~${s.power} cada uno.`; break;
+    case 'bolt': main = boltText(el, s, st, eln); break;
+    case 'nova': main = `Libera una onda expansiva de ${eln} que crece desde tus pies (radio ${s.radius}): inflige ~${s.power} a cada enemigo que alcanza y lo empuja; además, ${st}.`; break;
+    case 'buff': {
+      const effs = el.buff.map((b) => EFFECT_NAMES[b[0]] ?? b[0].replace(/_/g, ' ')).join(', ');
+      main = `Te envuelve en un aura de ${eln} durante ${secs} s: ${effs} (nivel ${s.tier + 1}).`;
+      if (OFFENSIVE_AURA.has(s.element) && s.tier >= 1) main += ` Mientras dure, el aura daña a los enemigos que se te acerquen y les deja ${eln === 'viento' ? 'desequilibrados' : 'su marca elemental'}.`;
+      if (s.element === 'sangre') main += ' Cuesta un poco de tu propia vida.';
+      if (s.element === 'arcano') main += ' Duplica tu regeneración de maná.';
+      break;
+    }
+    case 'curse': main = `Lanza zarcillos de ${eln} a los enemigos frente a ti (cono, alcance ${s.range}, hasta 6 objetivos): ~${s.power} de daño; además, ${st} con gran intensidad y su estado elemental dura mucho más: ideal para preparar reacciones.`; break;
+    case 'lance': main = `Dispara un haz de ${eln} veloz como una flecha que atraviesa a todos los enemigos en línea (alcance ${s.range}), ~${s.power} de daño a cada uno.`; break;
+    case 'zone': main = `Crea un dominio de ${eln} en el suelo (radio ${s.radius}), marcado por un anillo brillante durante ${secs} s: cada medio segundo inflige ~${s.power} a quien esté dentro (${st}); además, ${el.zone ?? 'castiga a quien entre'}.`; break;
+    case 'ward': main = `Te rodea de un escudo de ${eln}: absorción y cura ~${Math.round(s.power * 3 + 4)} de vida${HEALERS.has(s.element) ? ' (también a los aliados cercanos)' : ''}${['necromancia', 'sangre'].includes(s.element) ? '; además drena la vida de los enemigos cercanos' : ''}${['tierra', 'hielo'].includes(s.element) ? '; además te da Resistencia' : ''}${s.element === 'oscuridad' ? '; además te vuelve invisible un momento' : ''}.`; break;
+    case 'step': main = el.step === 'blink' ? `Te teletransporta hasta ${s.range} bloques hacia donde miras, dejando una estela de ${eln}.` : el.step === 'leap' ? `Un gran salto impulsado por ${WITH_ARTICLE[s.element] ?? eln}${s.element === 'tierra' ? '; al aterrizar provoca un temblor que daña y aturde' : s.element === 'viento' ? '; al aterrizar suelta una ráfaga que derriba a los enemigos' : ''}.` : `Una embestida de ${eln} que daña a quien atravieses (~${Math.round(s.power * 0.6 * 10) / 10}).`; break;
+    case 'summon': main = `Invoca durante ${secs} s ${spirits(s.count, eln)} a lo que tú golpeas${HEALERS.has(s.element) ? (s.count === 1 ? '; además te cura cada pocos segundos' : '; además te curan cada pocos segundos') : ''}. Sus golpes dejan el estado de su elemento.`; break;
+    case 'rain': main = `Marca una zona (radio ${s.radius}) y hace caer del cielo ${s.strikes} ${el.rain ?? 'impactos de ' + eln} que buscan a los enemigos; cada impacto inflige ~${s.power} en área.`; break;
   }
-  if (s.tier === 4) main += ' §6Hechizo legendario.';
+  if (s.tier === 4) main += ' §6Hechizo legendario: su lanzamiento sacude la tierra.§r';
+  else if (s.tier === 3 && ['nova', 'zone', 'rain'].includes(s.kind)) main += ' Su poder hace temblar el suelo.';
   return DAMAGING.has(s.kind) || (s.kind === 'step' && el.step !== 'blink') ? main + '\n' + combosText(s.element) : main;
 }
 

@@ -19,6 +19,7 @@ const HEALERS = new Set(['luz', 'agua', 'naturaleza']);
 const HEAL_EVERY = 80; // ticks
 const FOLLOW_NEAR = 5; // a partir de aquí se acerca al dueño
 const FOLLOW_TP = 18; // más lejos: reaparece junto al dueño
+const FOLLOW_LEASH = 11; // aunque esté peleando, vuelve con su dueño si este se aleja más
 const NEVER_MARK = new Set(['minecraft:player', 'rpg:npc', 'rpg:spirit', 'rpg:waypoint', 'rpg:tomato', 'minecraft:item', 'minecraft:xp_orb',
   'minecraft:villager_v2', 'minecraft:villager', 'minecraft:wandering_trader', 'minecraft:armor_stand', 'minecraft:painting']);
 
@@ -120,17 +121,20 @@ export function markTarget(player, entity) {
   const until = system.currentTick + MARK_TICKS;
   const m = marks.get(entity.id);
   if (m) { m.until = until; m.owners.add(player.id); } else marks.set(entity.id, { e: entity, until, owners: new Set([player.id]) });
-  let tagged = false;
-  try { tagged = entity.addTag(MARK_TAG) || entity.hasTag(MARK_TAG); } catch {
+  try {
+    if (!entity.hasTag(MARK_TAG)) entity.addTag(MARK_TAG);
+  } catch {
     // contexto de solo lectura (before-event): se aplica en el siguiente tick
     system.run(() => { try { if (valid(entity)) entity.addTag(MARK_TAG); } catch {} });
   }
-  try {
-    const l = entity.location;
-    fx.px(entity.dimension, 'rpg:spark', { x: l.x, y: l.y + 2.3, z: l.z }, [1, 0.2, 0.2], true);
-  } catch {}
+  if (!m) {
+    try {
+      const l = entity.location;
+      fx.px(entity.dimension, 'rpg:spark', { x: l.x, y: l.y + 2.3, z: l.z }, [1, 0.2, 0.2], true);
+    } catch {}
+  }
   fx.ticker('summons', 2, fastTick);
-  return tagged || true;
+  return true;
 }
 
 /** ¿Está marcada la entidad? */
@@ -218,7 +222,8 @@ function follow(s, owner, now) {
     fx.impact(owner.dimension, { x: dest.x, y: dest.y + 0.7, z: dest.z }, s.el, rgb);
     return;
   }
-  if (d <= FOLLOW_NEAR || fighting(s, now)) return;
+  // mientras pelea no se aleja de su presa, salvo que el dueño se vaya demasiado lejos (correa)
+  if (d <= FOLLOW_NEAR || (d < FOLLOW_LEASH && fighting(s, now))) return;
   // Paso suave hacia el dueño (teletransporte seguro: no atraviesa bloques)
   const step = Math.max(0.35, Math.min(1.1, (d - FOLLOW_NEAR + 1) * 0.12));
   const k = step / d;
@@ -229,7 +234,7 @@ function follow(s, owner, now) {
     // bloqueado: pequeño salto hacia el dueño
     try { e.applyImpulse({ x: (ol.x - el.x) / d * 0.25, y: 0.42, z: (ol.z - el.z) / d * 0.25 }); } catch {}
   }
-  if (now % 6 === 0) fx.px(e.dimension, 'rpg:spark', { x: el.x, y: el.y + 0.5, z: el.z }, rgb);
+  if (fastN % 3 === 0) fx.px(e.dimension, 'rpg:spark', { x: el.x, y: el.y + 0.5, z: el.z }, rgb);
 }
 
 function healOwner(s, owner) {

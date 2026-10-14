@@ -242,7 +242,7 @@ export const BARK_FAME = {
 
 export const BARK_CRIME = {
   wanted: ['Ése/a es a quien buscan los guardias...', 'Tiene la cara de los carteles de la plaza...', '*susurra* No le mires, que es el/la de los carteles.'],
-  thief: ['Ése/a es el ladrón/la ladrona del mercado...', 'Cuidado con tu bolsa, ahí va {p}.', 'Escóndete la bolsa, que viene el/la caco.', '*se agarra la bolsa con fuerza*'],
+  thief: ['Ése/a es el ladrón/la ladrona del mercado...', 'Cuidado con tu bolsa, ahí va {p}.', 'Escóndete la bolsa, que por ahí viene el/la carterista.', '*se agarra la bolsa con fuerza*'],
   murder: ['Dicen que ha matado a alguien... no le mires.', 'Asesino/a...', '*se aparta, temblando*', 'Que los dioses nos protejan de ése/a.'],
   humiliated: ['¡Eh, {p}! ¿Te quedan tomates en el pelo?', 'Yo te vi en la picota, ¡ja!', 'Ahí va el/la de los tomates.'],
   villain: ['*se santigua*', 'Que los dioses nos protejan...', 'Mejor entrar en casa...'],
@@ -524,6 +524,38 @@ export const ROYAL = {
   quest_busy: ['Ya te encomendé una tarea hoy. Cúmplela antes de pedir más.'],
 };
 
+// Canciones del bardo sobre el jugador. {p}: nombre, {hazana}: gesta en 3.ª persona, {verguenza}: fechoría,
+// {heroe}: héroe/heroína, {asentamiento}, {trato}, {c}: propina.
+export const BARD_SONG = {
+  tip: 3,
+  ask: ['¿Una canción? Por {c} monedas te compongo algo que hará llorar a las piedras.', '♪ Una moneda para el bardo y una copla para ti... ♪ Son {c} de oro, {trato}.', 'Dame {c} de oro y tu nombre sonará en cada taberna de aquí al mar.'],
+  again: ['Ya te canté hoy, {trato}. Mi garganta necesita cerveza, no más versos.', 'Mañana te compongo otra, palabra de bardo. Hoy ya no me queda voz.'],
+  open: ['♪ Escuchad, gentes de {asentamiento}, escuchad esta canción... ♪', '♪ Brindad, brindad, y prestad atención... ♪', '♪ De tierras lejanas os traigo una historia... ♪', '♪ Callad un momento, que el bardo va a cantar... ♪'],
+  glory: [
+    '♪ Cantan los vientos que {p} {hazana}, ♪\n♪ y tiemblan los monstruos al oír su nombre. ♪',
+    '♪ Ni el miedo ni el frío detienen sus pasos: ♪\n♪ {p} {hazana}, ¡qué grande es su hazaña! ♪',
+    '♪ Dicen los viejos junto al fuego del hogar ♪\n♪ que {p} {hazana}... ¡y lo volverá a hacer! ♪',
+  ],
+  unknown: [
+    '♪ De {p} poco se sabe, apenas un nombre, ♪\n♪ mas dicen que un día será gran {heroe}. ♪',
+    '♪ Llegó sin hazañas, con polvo en las botas, ♪\n♪ y {p} se llama: ¡recordad su nombre! ♪',
+  ],
+  shame: [
+    '♪ Mas ojo, vecinos, guardad bien la bolsa, ♪\n♪ que {p} {verguenza}... y eso no se olvida. ♪',
+    '♪ Y aunque sonría con cara de santo/a, ♪\n♪ {p} {verguenza}: ¡la guardia lo sabe! ♪',
+  ],
+  cls: {
+    0: '♪ No tiene ni casa, ni pan, ni camisa, ♪\n♪ pero le sobran valor y sonrisa. ♪',
+    1: '♪ Del pueblo llano, de manos curtidas, ♪\n♪ camina sin miedo por calles y ermitas. ♪',
+    2: '♪ Vecino/a honrado/a de buena reputación, ♪\n♪ saluda a la gente con el corazón. ♪',
+    3: '♪ Su bolsa tintinea con oro y con plata: ♪\n♪ ¡que pague la ronda quien tanto se trata! ♪',
+    4: '♪ Con espada y escudo, orgullo del Gremio, ♪\n♪ protege caminos sin pedir ni un premio. ♪',
+    5: '♪ Noble de cuna o noble de mérito, ♪\n♪ ¡larga vida a su casa y a su linaje bendito! ♪',
+  },
+  close: ['♪ ¡Y aquí acaba la copla, que el bardo tiene sed! ♪', '♪ ¡Brindad por {p}, y otra ronda también! ♪', '♪ Y colorín colorado, esta copla se ha acabado. ♪'],
+  cheer: ['¡Bravo!', '¡Otra, otra!', '¡Viva {p}!', '*aplaude*', '¡Qué bien canta el condenado!'],
+};
+
 export const GUARD_LAW_INTRO = [
   'Escucha bien, que no lo repetiré.',
   'La ley de {reino} es clara.',
@@ -583,6 +615,7 @@ export const HAGGLE = {
   final_sell: ['{precio}, y es mi última palabra.', 'Lo máximo que puedo darte es {precio}.'],
   insult: ['¿Me estás tomando el pelo? ¡Fuera de mi puesto!', '¡Qué insulto! Con gente como tú no hago tratos.', '¿{oferta}? ¡Eso es un robo! No pienso seguir hablando contigo.', '¡Ladrón/a! ¡Largo de aquí!'],
   walk: ['Como quieras. Ya volverás.', 'Tú te lo pierdes.', 'Nadie te dará un precio mejor, ya verás.'],
+  nudge: ['¿Y bien? ¿Cuánto ofreces? Sigo esperando: {precio}.', 'No te quedes callado/a. Di una cifra o acepta mis {precio}.', '*tamborilea en el mostrador* ¿Hacemos trato o no? {precio} de oro.'],
   banned: ['Hoy no quiero tratos contigo. Vuelve mañana con mejores modales.', 'Después de tu insulto, hoy pagas el precio de la tabla o nada.'],
   broke: ['Ya no me queda oro en la bolsa para comprarte nada más hoy.', 'Me has dejado sin blanca. Vuelve mañana.'],
 };

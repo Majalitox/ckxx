@@ -20,6 +20,7 @@ import { raceOf } from '../data/races.js';
 import { BOSSES } from '../data/mobs.js';
 import { RANKS } from '../data/ranks.js';
 import { jobLabel } from '../data/names.js';
+import * as npcMod from './npc.js'; // solo en tiempo de ejecución (ciclo npc ↔ life sin uso al cargar)
 import { fill } from '../util/text.js';
 import { pick, hash, seeded, weighted, randInt, clamp, dist, dist2D, cardinal } from '../util/math.js';
 import { particle, valid, countItem, removeWhere, removeItem, psound } from '../util/compat.js';
@@ -282,6 +283,16 @@ function tickNpc(e, base) {
   }
   let ident = cachedIdent(e, base.now);
   if (!ident) return;
+  // NPCs de un mundo de la v1: oficio, clase, bolsa y aspecto nuevos (una sola vez).
+  if (ident.lv !== npcMod.LOOK_VERSION) {
+    let up;
+    try { up = npcMod.upgradeLook(e, readIdent(e) ?? ident); } catch (err) { console.warn('[Aetheria] migrar NPC: ' + err); }
+    if (up) {
+      ident = up;
+      identCache.set(e.id, { ident, t: base.now });
+      try { if (getAct(e) === 'sleep') e.setProperty('rpg:mood', 3); } catch {}
+    }
+  }
   // Bolsa diaria (se relee la identidad para no pisar cambios de otros sistemas).
   if (ident.wday !== base.day) {
     const fresh = readIdent(e);
@@ -547,6 +558,8 @@ export function ambientLine(e, ident, player, d, place, ctx) {
 const reacted = new Map(); // pid|npcId -> tick
 const playerBark = new Map(); // pid -> tick
 const playerConvo = new Map(); // pid -> tick
+const playerEcho = new Map(); // pid -> tick del último eco en el chat (las reacciones importantes también se escriben)
+const ECHO_GAP = 20 * 20;
 const convos = new Map(); // npcId -> until
 let weatherFreshUntil = 0;
 
@@ -598,7 +611,10 @@ function ambientTick(players, base) {
           if (!r) continue;
           say(x.e, r.line, 4.5);
           try { x.e.lookAt(player.getHeadLocation()); } catch {}
-          if (r.important) msg(player, `§e[${ident.name}] §f${r.line}`);
+          if (r.important && now - (playerEcho.get(player.id) ?? -1e9) >= ECHO_GAP) {
+            playerEcho.set(player.id, now);
+            msg(player, `§e[${ident.name}] §f${r.line}`);
+          }
           playerBark.set(player.id, now);
           done = true;
           break;
@@ -837,14 +853,12 @@ export function offersDayJob(ident) {
 }
 
 /**
- * Llamar desde el mismo sitio que quests.progress (hooks.questProgress): cuenta la cosecha de los jornales
- * y registra hazañas automáticas al derrotar jefes ('boss') y limpiar mazmorras ('dungeon', extra = rango).
+ * Llamar justo después de quests.progress (mismo gancho questProgress): cuenta la cosecha de los jornales y
+ * convierte en hazaña los encargos reales recién completados. Las hazañas de jefes, mazmorras y rangos del
+ * Gremio NO se registran aquí: las conectan sus propios ganchos (bosses.hooks.onDefeated,
+ * dungeons → social.deedForDungeon, progressHooks.onGuildRank), así no se duplican.
  */
 export function onProgress(player, type, key, n = 1, extra) {
-  try {
-    if (type === 'boss') social.deedForBoss(player, key);
-    else if (type === 'dungeon') social.deedForDungeon(player, extra);
-  } catch (e) { console.warn('[Aetheria] hazaña: ' + e); }
   const d = getP(player);
   if (!d) return;
   // quests.progress ya ha marcado las misiones completadas: el encargo real cuenta como hazaña al momento.
@@ -891,8 +905,8 @@ export async function dayJobMenu(player, ident, entity) {
   let wage = Math.round(randInt(spec.wage[0], spec.wage[1]) * (0.7 + 0.3 * pros));
   if (stageOf(d) === 'child') wage = Math.max(3, Math.round(wage * 0.6));
   const item = spec.items ? pick(spec.items) : undefined;
-  const desc = fill(spec.desc, { n: need, s: s?.name ?? 'el pueblo', item: item?.[1] ?? '' });
-  const ok = await confirm(player, `§l§6${spec.title}`,
+  const desc = genderize(fill(spec.desc, { n: need, s: s?.name ?? 'el pueblo', item: item?.[1] ?? '' }), d.gender, ident.gender);
+  const ok = await confirm(player, `§l§6${genderize(spec.title, d.gender, ident.gender)}`,
     `§e${ident.name}: §f${genderize(fill(pick(spec.offer), v), d.gender, ident.gender)}\n\n§7Tarea: §f${desc}\n§7Paga: §6${wage} oro §7+ experiencia\n§8(Un jornal por día.)`,
     '§aAcepto el trabajo', '§cAhora no');
   if (!ok) return;
@@ -1038,6 +1052,7 @@ export function forgetPlayer(player) {
   try { economy.forgetPlayer(player); } catch {}
   playerBark.delete(player.id);
   playerConvo.delete(player.id);
+  playerEcho.delete(player.id);
   nearByPlayer.delete(player.id);
 }
 

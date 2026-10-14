@@ -87,6 +87,7 @@ function timeDesc() {
 }
 
 function fem(w) {
+  if (/^[EeÉé]st?e$/.test(w)) return w.slice(0, -1) + 'a'; // ese/ése/este/éste → esa/ésa/esta/ésta
   if (/ón$/.test(w)) return w.slice(0, -2) + 'ona';
   if (/ío$/.test(w)) return w.slice(0, -2) + 'ía';
   if (/o$/.test(w)) return w.slice(0, -1) + 'a';
@@ -94,10 +95,25 @@ function fem(w) {
   return w;
 }
 
-/** Resuelve "palabra/a" (género del jugador) y "palabra/A" (género del NPC). */
+const WORD = '[A-Za-zÁÉÍÓÚáéíóúñÑüÜ]+';
+const PAIR_RE = new RegExp(`\\b([Ee]l) (${WORD})\\/([Ll]a) (${WORD})`, 'g'); // "el héroe/la heroína"
+const ART_RE = /\b([Ee])l\/[Ll]a\b/g; // "el/la", "El/la"
+const UN_RE = /\b([Uu])n\/[Uu]na\b/g; // "un/una"
+const NPC_RE = new RegExp(`(${WORD})\\/A\\b`, 'g');
+const PLAYER_RE = new RegExp(`(${WORD})\\/a\\b`, 'g');
+
+/**
+ * Resuelve el género en los textos (los pares con artículo y "el/la" siguen el género del jugador):
+ * "palabra/a" y "el/la" → jugador · "palabra/A" → NPC · "el héroe/la heroína" → forma completa.
+ */
 export function genderize(s, playerGender, npcGender) {
-  s = s.replace(/([A-Za-zÁÉÍÓÚáéíóúñÑ]+)\/A\b/g, (m, w) => (npcGender === 'f' ? fem(w) : w));
-  s = s.replace(/([A-Za-zÁÉÍÓÚáéíóúñÑ]+)\/a\b/g, (m, w) => (playerGender === 'f' ? fem(w) : w));
+  const f = playerGender === 'f';
+  s = String(s ?? '');
+  s = s.replace(PAIR_RE, (m, a1, w1, a2, w2) => (f ? `${a2} ${w2}` : `${a1} ${w1}`));
+  s = s.replace(ART_RE, (m, e) => (f ? (e === 'E' ? 'La' : 'la') : e + 'l'));
+  s = s.replace(UN_RE, (m, u) => (f ? u + 'na' : u + 'n'));
+  s = s.replace(NPC_RE, (m, w) => (npcGender === 'f' ? fem(w) : w));
+  s = s.replace(PLAYER_RE, (m, w) => (f ? fem(w) : w));
   return s;
 }
 

@@ -36,11 +36,25 @@ console.warn = (...a) => { const s = a.join(' '); if (!s.includes('Cargado')) er
 let fails = 0;
 const check = (name, cond, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL'} ${name}${extra ? '  ' + extra : ''}`); if (!cond) { fails++; process.exitCode = 1; } };
 const q = (...items) => { ui.queue.length = 0; ui.queue.push(...items); };
+// Revisión de todo el texto que ve el jugador (formularios y mensajes): sin variables ni géneros sin resolver.
+const BAD_TEXT = /\{[a-z_]+\}|\/a\b|\/A\b|\b[Ee]l\/[Ll]a\b|undefined|NaN|\[object/;
+const seenBad = [];
+const lintText = (t, where) => { if (typeof t === 'string' && BAD_TEXT.test(t)) seenBad.push(where + ': ' + t.replace(/\n/g, ' ¶ ').slice(0, 300)); };
+const origPush = ui.shown.push.bind(ui.shown);
+ui.shown.push = (...forms) => {
+  for (const f of forms) {
+    lintText(f.title, 'título'); lintText(f.body, 'cuerpo ' + (f.title ?? ''));
+    for (const b of f.buttons ?? []) lintText(b, 'botón ' + (f.title ?? ''));
+    for (const fl of f.fields ?? []) lintText(String(fl?.[1] ?? ''), 'campo ' + (f.title ?? ''));
+  }
+  return origPush(...forms);
+};
 
+// economy.js primero: es el orden de importación con el ciclo más delicado (economy → social → … → life → economy).
+const economy = await import('./scripts/systems/economy.js');
 const store = await import('./scripts/core/store.js');
 const profile = await import('./scripts/core/profile.js');
 const social = await import('./scripts/systems/social.js');
-const economy = await import('./scripts/systems/economy.js');
 const life = await import('./scripts/systems/life.js');
 const npc = await import('./scripts/systems/npc.js');
 const chat = await import('./scripts/systems/chat.js');
@@ -283,6 +297,11 @@ await advance(4);
 
 /* ================= Chat: clima, reino, ley, rumores ================= */
 {
+  const gz = chat.genderize;
+  check('género: "el/la" y pares completos', gz('Ése/a es el ladrón/la ladrona; el/la de los tomates', 'f', 'm') === 'Ésa es la ladrona; la de los tomates'
+    && gz('¡El héroe/La heroína! ¿El/la de antes?', 'm', 'f') === '¡El héroe! ¿El de antes?', gz('Ése/a es el ladrón/la ladrona; el/la de los tomates', 'f', 'm'));
+  check('género: demostrativos y NPC', gz('este/a pordiosero/a, ése/a mismo/a', 'f', 'm') === 'esta pordiosera, ésa misma' && gz('Estoy cansado/A', 'm', 'f') === 'Estoy cansada');
+  check('género: no toca palabras que acaban en "el"', gz('Miguel/la y papel', 'f', 'f') === 'Miguel/la y papel');
   world.afterEvents.weatherChange.fire({ dimension: 'overworld', newWeather: 'Thunder', previousWeather: 'Clear' });
   check('caché del clima por evento', chat.currentWeather('minecraft:overworld') === 'Thunder');
   chat.setKnownWeather('Clear');
@@ -301,6 +320,42 @@ await advance(4);
   check('el granjero ofrece jornal', /Trabajo por un día/.test(jobR.text), jobR.text);
   const r1 = life.rumour(p, identOf(keeper));
   check('rumor de otro asentamiento o del reino', typeof r1 === 'string' && r1.length > 10, r1);
+}
+
+/* ================= Calidad del texto generado ================= */
+{
+  const bad = [];
+  const lint = (t, where) => { if (typeof t !== 'string') return; if (/\{[a-z_]+\}|\/a\b|\/A\b|\b[Ee]l\/[Ll]a\b|undefined|NaN|\[object/.test(t)) bad.push(where + ': ' + t); };
+  const idents = [farmer, guardDay, noble, beggar, keeper, merchant, king].map(identOf);
+  const variants = [
+    { gender: 'f', gold: 0, family: {}, social: { birth: 'baja' } },
+    { gender: 'm', gold: 30, social: { birth: 'baja' } },
+    { gender: 'f', gold: 300, social: { birth: 'media' } },
+    { gender: 'm', gold: 1500, social: { birth: 'media', fame: { r1: 500 } } },
+    { gender: 'f', guild: { member: true, rank: 5, points: 0 }, social: { birth: 'alta', fame: { r1: 1000 } } },
+    { gender: 'm', social: { birth: 'alta', noble: { realmId: 'r1' } }, karma: -600, wanted: { stars: 2, crimes: ['hurto'] }, record: { hurto: 2, asesinato: 1 } },
+    { gender: 'f', ageTicks: 0, social: { birth: 'media' }, race: 'orco' },
+  ];
+  const place = social.placeOf(p);
+  for (let i = 0; i < variants.length; i++) {
+    const [pv, dv] = mkPlayer('Lint' + i, variants[i]);
+    social.addDeed(pv, social.deed(['boss', 'royal', 'guild_rank', 'crime', 'title'][i % 5], { name: 'Liche Eterno', ruler: 'el Rey Alfonso', rank: 'B', crime: 'hurto', realm: 'el Reino de Valdoria', realmId: 'r1', fame: i === 3 ? -40 : 30 }));
+    for (const id of idents) {
+      for (let k = 0; k < 12; k++) {
+        const r = life.reactionLine(pv, dv, id, place);
+        if (r) lint(r.line, 'reacción ' + id.job);
+        lint(life.ambientLine(farmer, id, pv, dv, place, { time: k * 2000, weather: ['Clear', 'Rain', 'Thunder'][k % 3], weatherFresh: k % 4 === 0, otherName: 'Pepe' }), 'ambiente ' + id.job);
+      }
+      const c = { player: pv, d: dv, ident: id, rel: npc.relOf(dv, id), stage: profile.stageOf(dv), mood: 'normal' };
+      for (const t of ['hola', '¿quién eres?', 'háblame del reino', '¿cuáles son las leyes?', '¿qué opinas de mi clase social?', '¿conoces mis hazañas?', 'me buscan por robar', 'quiero regatear', 'busco trabajo', '¿qué rumores hay?', 'adiós']) lint(chat.reply(c, t).text, 'chat ' + id.job + ' «' + t + '»');
+      lint(chat.opening(c), 'saludo ' + id.job);
+    }
+    for (let k = 0; k < 15; k++) lint(life.rumour(pv, idents[4]), 'rumor');
+    lint(social.journalPage(pv), 'diario');
+    pv.remove();
+  }
+  for (const b of bad.slice(0, 6)) console.log('  >> ' + b.replace(/\n/g, ' ¶ ').slice(0, 600));
+  check('texto generado sin variables ni géneros sin resolver', bad.length === 0, String(bad.length));
 }
 
 /* ================= Economía: precios, impuestos, eventos ================= */
@@ -360,6 +415,14 @@ await advance(4);
   q(['no']);
   const h = await economy.haggle(p, k, 50, 'sell', { item: 'pieles' });
   check('regateo: marcharse', h === undefined);
+  ui.shown.length = 0;
+  q([''], ['', true]);
+  const i2 = await economy.haggle(p, k, 50, 'sell', { item: 'pieles' });
+  const nudged = ui.shown.filter((f) => f.kind === 'modal').length === 2 && /Y bien|callad|tamborilea/.test(ui.shown[1]?.fields?.[0]?.[1] ?? '');
+  check('regateo: enviar sin cifra hace insistir al mercader (sin gastar ronda)', i2 === 50 && nudged, ui.shown[1]?.fields?.[0]?.[1]);
+  q([''], ['']);
+  const j2 = await economy.haggle(p, k, 50, 'sell', { item: 'pieles' });
+  check('regateo: dos veces sin cifra = se acabó', j2 === undefined);
 }
 
 /* ================= Tienda con regateo ================= */
@@ -391,14 +454,19 @@ await advance(4);
   const t = economy.activeTheft(p);
   check('el carterista se acerca a escondidas y roba', !!t && d.gold < 400, `oro ${d.gold}`);
   check('el ladrón huye ocupado', thief.hasTag('rpg_busy') && thief._events.includes('rpg:act_flee') && thief.nameTag.includes('ladrón'));
+  const hud = economy.theftHud(p);
+  check('HUD de persecución', /¡Al ladrón!.*Rufo.*\d+ s.*\d+ m/.test(hud), hud);
   const stolen = t?.gold ?? 0;
   const goldAfter = d.gold;
   world.afterEvents.entityHurt.fire({ hurtEntity: thief, damage: 1, damageSource: { cause: 'entityAttack', damagingEntity: p } });
-  check('golpear al ladrón recupera el oro', d.gold === goldAfter + stolen && !economy.activeTheft(p), `${goldAfter}+${stolen}=${d.gold}`);
+  check('golpear al ladrón recupera el oro', d.gold === goldAfter + stolen && !economy.activeTheft(p) && economy.theftHud(p) === '', `${goldAfter}+${stolen}=${d.gold}`);
   check('hazaña por atrapar al carterista', d.social.deeds.some((x) => x.text.includes('carterista')));
   await advance(130);
   check('el ladrón se libera tras huir', !thief.hasTag('rpg_busy'));
   check('el ladrón queda desenmascarado', identOf(thief).exposed === world.getDay());
+  life.clearBubble(thief); // un bocadillo ambiental puede ocupar la segunda línea en este momento
+  check('su cartel ya no dice «Forastero» sino «Ladrón»', thief.nameTag.includes('Ladrón') && !thief.nameTag.includes('Forastero') && !thief.nameTag.includes('¡Al ladrón!'), thief.nameTag);
+  check('sin restos del robo en el NPC', thief.getDynamicProperty('rpg:nt') === undefined && thief.getDynamicProperty('rpg:loot') === undefined && !economy.isFleeTracked(thief.id));
   // Escapa con el oro.
   const thief2 = npc.spawnNpc(ow, { x: 102.5, y: 65, z: 100.5 }, npc.makeIdentity({ job: 'ladron', settlement: 's1', name: 'Zorro' }));
   await advance(3);
@@ -498,8 +566,27 @@ await advance(4);
   const rq = d.quests?.guild?.find((x) => x.royal);
   check('encargo real añadido a las misiones', !!rq && rq.title.startsWith('Encargo real'));
   rq.done = true;
+  life.onProgress(p, 'kill', rq.target ?? '', 1);
+  check('hazaña inmediata al completar el encargo real', d.social.deeds.some((x) => x.text.includes('encargo real')) && rq.deedDone);
   await advance(110);
-  check('hazaña al completar el encargo real', d.social.deeds.some((x) => x.text.includes('encargo real')));
+  check('el encargo real cuenta una sola vez', d.social.deeds.filter((x) => x.text.includes('encargo real')).length === 1);
+  // El bardo compone una copla con tus gestas.
+  const bard = spawn({ job: 'bardo', gender: 'm', name: 'Juglar' }, { x: 1, y: 65, z: 4 });
+  await advance(3);
+  ui.shown.length = 0;
+  const gb = d.gold;
+  q('canción', true, undefined);
+  world.beforeEvents.playerInteractWithEntity.fire({ player: p, target: bard, cancel: false });
+  await advance(10);
+  const songForm = ui.shown.find((f) => (f.title ?? '').includes('La copla de'));
+  check('el bardo canta tus gestas', !!songForm && /Liche|carterista|rango|noble|campeona/.test(songForm.body ?? '') && d.gold === gb - 3, songForm?.body);
+  check('la copla no deja "el/la" sin resolver', !/\b[Ee]l\/[Ll]a\b|\/a\b|\/A\b/.test(songForm?.body ?? ''));
+  ui.shown.length = 0;
+  q('canción', undefined);
+  world.beforeEvents.playerInteractWithEntity.fire({ player: p, target: bard, cancel: false });
+  await advance(10);
+  check('una canción por día', ui.shown.some((f) => /Ya te canté|Mañana te compongo/.test(f.body ?? '')));
+  bard.remove();
   // Chat de una noble con una mendiga: se corta pronto.
   const [pb2] = mkPlayer('Harapos', { gold: 0, family: {}, social: { birth: 'baja' } });
   pb2.teleport({ x: -3, y: 65, z: 3 });
@@ -513,10 +600,17 @@ await advance(4);
 /* ================= Hazañas automáticas (ganchos del integrador) ================= */
 {
   const n0 = d.social.deeds.length;
-  life.onProgress(p, 'boss', 'rpg:spider_queen', 1);
+  social.deedForBoss(p, 'rpg:spider_queen');
   check('hazaña al derrotar un jefe', d.social.deeds[0]?.text.includes('a la Reina Araña'), d.social.deeds[0]?.text);
-  life.onProgress(p, 'dungeon', '', 1, 4);
+  const nb0 = d.social.deeds.length;
+  social.deedForBoss(p, 'rpg:spider_queen'); // el mismo suceso llega por otro gancho
+  life.onProgress(p, 'boss', 'rpg:spider_queen', 1);
+  check('el mismo jefe no cuenta dos veces', d.social.deeds.length === nb0);
+  social.deedForDungeon(p, 4);
   check('hazaña al limpiar una mazmorra', d.social.deeds[0]?.text.includes('rango B'), d.social.deeds[0]?.text);
+  const nd0 = d.social.deeds.length;
+  life.onProgress(p, 'dungeon', '', 1, 4);
+  check('onProgress no duplica la hazaña de la mazmorra', d.social.deeds.length === nd0);
   const inf0 = social.infamy(d, 'r1');
   social.deedForCrime(p, 'hurto', { witnessed: true, stars: 1, settlement: social.getSettlementSafe('s1'), realm: social.realmById('r1') });
   check('infamia por un crimen presenciado', social.infamy(d, 'r1') > inf0 && d.social.deeds[0].fame < 0);
@@ -529,6 +623,54 @@ await advance(4);
   check('artículos del reino', social.realmArt('Clanes de Khazad') === 'los Clanes de Khazad' && social.fixEs('la corte de el Reino') === 'La corte del Reino');
   check('complemento con artículo', social.withA('El Rey del Vacío') === 'al Rey del Vacío' && social.withA('Azazel, Señor Demonio') === 'a Azazel, Señor Demonio');
   void n0;
+}
+
+/* ================= Recuperación tras recargar los scripts ================= */
+{
+  world.setTimeOfDay(3000);
+  p.teleport({ x: 2.5, y: 65, z: 2.5 });
+  // Lejos del ambiente (>16) pero dentro del radio de horarios (≤64).
+  const eco = spawn({ job: 'aldeano', name: 'Eco', gender: 'm' }, { x: 42, y: 65, z: 2 });
+  await advance(3);
+  const base = eco.nameTag;
+  life.say(eco, 'Esto se quedará colgado', 60);
+  life._t.bubbles.delete(eco.id); // se pierde la memoria (recarga a mitad del bocadillo)
+  check('bocadillo colgado tras recargar', eco.nameTag.includes('«') && eco.getDynamicProperty('rpg:nt') === base);
+  await advance(25);
+  check('al recargar se restaura el nombre', eco.nameTag === base && eco.getDynamicProperty('rpg:nt') === undefined, eco.nameTag);
+  // Carterista que huía cuando se cerró el mundo.
+  const st = npc.spawnNpc(ow, { x: 44, y: 65, z: 6 }, npc.makeIdentity({ job: 'ladron', settlement: 's1', name: 'Sombra', gender: 'm' }));
+  await advance(3);
+  const real = st.nameTag;
+  const w0 = identOf(st).wallet;
+  st.addTag('rpg_busy'); st.addTag('rpg_fleeing');
+  st.setDynamicProperty('rpg:nt', real); st.setDynamicProperty('rpg:loot', 25);
+  st.nameTag = '§cSombra\n§4¡Al ladrón!';
+  await advance(25);
+  check('carterista colgado: se libera, recupera su nombre y se queda el botín', !st.hasTag('rpg_busy') && !st.hasTag('rpg_fleeing') && st.nameTag === real && identOf(st).wallet === w0 + 25, `${st.nameTag} · ${w0}→${identOf(st).wallet}`);
+  check('y vuelve a su horario', typeof st.getDynamicProperty('rpg:act') === 'string' && st.getDynamicProperty('rpg:act') !== '');
+  // Un NPC retenido por la justicia sigue intacto.
+  st.addTag('rpg_busy');
+  const ev0 = st._events.length;
+  await advance(25);
+  check('la justicia conserva el control de sus NPCs', st.hasTag('rpg_busy') && st._events.length === ev0);
+  st.removeTag('rpg_busy');
+  eco.remove(); st.remove();
+  // NPC de un mundo de la v1 (identidad sin oficio, clase, bolsa ni versión; piel del esquema antiguo).
+  const old = ow.spawnEntity('rpg:npc', { x: 40, y: 65, z: -4 });
+  old.setDynamicProperty('rpg:npc', JSON.stringify({ id: 'nv1', name: 'Viejo', surname: 'García', gender: 'm', race: 'elfo', role: 'aldeano', pers: 'sabio', age: 'adult' }));
+  old.setProperty('rpg:skin', 5);
+  old.nameTag = '§eViejo\n§7aldeano · §aElfo';
+  await advance(25);
+  const oi = identOf(old);
+  check('migración v1: identidad completada', oi.lv === npc.LOOK_VERSION && oi.job === 'aldeano' && ['baja', 'media'].includes(oi.cls) && typeof oi.wallet === 'number', JSON.stringify(oi));
+  const sk = old.getProperty('rpg:skin');
+  check('migración v1: piel del esquema nuevo (elfo = 16..31)', sk >= 16 && sk <= 31, String(sk));
+  check('migración v1: altura adulta y nombre con oficio', old._events.includes('rpg:scale_110') && old.nameTag.includes('Aldeano'), old.nameTag);
+  const evs = old._events.filter((x) => x.startsWith('rpg:scale')).length;
+  await advance(25);
+  check('migración v1: solo una vez', old._events.filter((x) => x.startsWith('rpg:scale')).length === evs);
+  old.remove();
 }
 
 /* ================= Llegada a un asentamiento ================= */
@@ -555,6 +697,7 @@ await advance(4);
     if (nb.camera.calls.some((c) => c[0] === 'set' && c[1] === 'minecraft:free' && c[2]?.facingLocation)) sawFree = true;
     if (sawCine && !nb.hasTag('rpg_cinematic') && !birth.cinematicActive(nb)) break;
   }
+  await advance(60); // la historia se muestra 1,5 s después de la cinemática
   const nd = store.getP(nb);
   check('nace el bebé', !!nd);
   check('cinemática: etiqueta y controles bloqueados', sawCine && lockedMove);
@@ -568,6 +711,19 @@ await advance(4);
   check('cuna colocada', [...ow._blocks.values()].some((b) => b.typeId === 'minecraft:white_carpet'));
   check('el bebé crece a tamaño de niño (55 %) tras la escena', nb._events.includes('rpg:scale_40') || nb._events.some((e) => e === 'rpg:scale_' + profile.scalePct(0.42 * ({ humano: 1, elfo: 1, enano: 0.75, orco: 1.15, bestia: 1, demonio: 1.05, celestial: 1.05, vampiro: 1, hada: 0.45, draconido: 1.1 })[nd.race])), nb._events.filter((e) => e.startsWith('rpg:scale')).join(','));
   check('clase social de la familia al nacer', ['baja', 'media', 'alta'].includes(nd?.social?.birth));
+  check('objetos iniciales entregados', nb._inv.slots.some((s) => s?.typeId === 'rpg:journal') && nb._inv.slots.some((s) => s?.typeId === 'rpg:grimoire'));
+  check('historia del nacimiento mostrada', nd && nd.storyPending === undefined && ui.shown.some((f) => (f.title ?? '').includes('Tu historia comienza')));
+  // Si salió durante la cinemática: la historia se muestra al volver (familyUpkeep).
+  nd.storyPending = '§fHistoria de prueba';
+  ui.shown.length = 0;
+  q(0);
+  birth.familyUpkeep(nb);
+  await advance(5);
+  check('historia pendiente mostrada más tarde', nd.storyPending === undefined && ui.shown.some((f) => (f.body ?? '').includes('Historia de prueba')));
+  // Familia retenida por una cinemática que ya no existe (el mundo se cerró a mitad).
+  famNpcs[0].addTag('rpg_busy'); famNpcs[0].addTag('rpg_cinematic_npc');
+  birth.familyUpkeep(nb);
+  check('familia liberada de una cinemática antigua', !famNpcs[0].hasTag('rpg_busy') && !famNpcs[0].hasTag('rpg_cinematic_npc'));
   // Salir a mitad: se recupera en el siguiente pasivo.
   nb.addTag('rpg_cinematic');
   nb.inputPermissions.setPermissionCategory(2, false);
@@ -577,6 +733,10 @@ await advance(4);
   check('recuperación tras salir a mitad de la escena', !nb.hasTag('rpg_cinematic') && nb.inputPermissions._perms[2] === true && nd.hud === undefined);
 }
 
+for (const pl of world.getAllPlayers()) for (const m of pl._msgs ?? []) lintText(m, 'mensaje a ' + pl.name);
+for (const m of log.messages) if (m.startsWith('[WORLD]')) lintText(m, 'anuncio');
+for (const b of [...new Set(seenBad)].slice(0, 8)) console.log('  >> ' + b);
+check('todo el texto mostrado al jugador está bien formado', seenBad.length === 0, String(seenBad.length));
 console.log('WARNINGS:', errs.length, errs.slice(0, 10));
 console.log('TIMER/JOB ERRORS:', log.errors.length, log.errors.slice(0, 3).map((e) => String(e?.stack ?? e)));
 if (errs.length || log.errors.length) process.exitCode = 1;
