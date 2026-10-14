@@ -1120,6 +1120,13 @@ def main():
     biomes()
     recipes()
     particles()
+    # Recursos visuales v2 (modelos, texturas, partículas, glifos): sobrescriben los anteriores.
+    try:
+        import rp_models  # noqa: WPS433
+    except ImportError:
+        rp_models = None
+    if rp_models is not None:
+        lang.update(rp_models.build(RP) or {})
     texts(lang)
     if '--no-zip' not in sys.argv:
         package()
