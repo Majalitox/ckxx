@@ -1082,17 +1082,29 @@ def clean():
                 os.remove(path)
 
 
+def _zip_pack(z, pack, arc_prefix):
+    for base, dirs, files in os.walk(pack):
+        dirs.sort()
+        for f in sorted(files):
+            full = os.path.join(base, f)
+            rel = os.path.relpath(full, pack).replace(os.sep, '/')
+            z.write(full, f'{arc_prefix}/{rel}' if arc_prefix else rel)
+
+
 def package():
+    """Crea el .mcaddon (ambos paquetes) y los .mcpack sueltos (uno por paquete)."""
     dist = os.path.join(ROOT, 'dist')
     os.makedirs(dist, exist_ok=True)
     out = os.path.join(dist, 'AetheriaRPG.mcaddon')
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as z:
         for pack, arc in ((BP, 'AetheriaRPG_BP'), (RP, 'AetheriaRPG_RP')):
-            for base, _, files in os.walk(pack):
-                for f in files:
-                    full = os.path.join(base, f)
-                    z.write(full, os.path.join(arc, os.path.relpath(full, pack)))
+            _zip_pack(z, pack, arc)
     print('Paquete creado:', os.path.relpath(out, ROOT))
+    for pack, name in ((BP, 'AetheriaRPG_BP.mcpack'), (RP, 'AetheriaRPG_RP.mcpack')):
+        path = os.path.join(dist, name)
+        with zipfile.ZipFile(path, 'w', zipfile.ZIP_DEFLATED) as z:
+            _zip_pack(z, pack, '')
+        print('Paquete creado:', os.path.relpath(path, ROOT))
 
 
 def main():
