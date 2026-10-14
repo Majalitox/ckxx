@@ -5,7 +5,7 @@ import { getP, W, flush, savePlayer, forgetPlayer, wDirty } from './core/store.j
 import { msg, progressHooks } from './core/progression.js';
 import { DRINKS } from './data/items.js';
 import { BOSSES, MOBS } from './data/mobs.js';
-import { beginBirth, familyUpkeep } from './systems/birth.js';
+import { beginBirth, familyUpkeep, cinematicActive } from './systems/birth.js';
 import { ageTick, passiveTick, fastMoveTick, dailyRaceTick, resetCaches, applyScale } from './systems/passives.js';
 import * as npc from './systems/npc.js';
 import * as quests from './systems/quests.js';
@@ -74,6 +74,7 @@ Object.assign(crime.hooks, {
   fame: (p, realmId) => { const d = getP(p); return d ? social.fame(d, realmId) : 0; },
 });
 settlements.hooks.onRaidDefended = (p, s) => social.deedForRaid(p, s);
+settlements.hooks.skipDiscovery = (p) => cinematicActive(p);
 
 /* ------------------------------ Eventos ------------------------------ */
 

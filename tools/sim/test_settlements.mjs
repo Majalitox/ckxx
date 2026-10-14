@@ -24,6 +24,7 @@ const store = await import('./scripts/core/store.js');
 const set = await import('./scripts/systems/settlements.js');
 const town = await import('./scripts/systems/town.js');
 const C = await import('./scripts/data/cultures.js');
+const birth = await import('./scripts/systems/birth.js');
 world.afterEvents.worldLoad.fire({});
 world.afterEvents.entityDie.subscribe((ev) => set.onEntityDie(ev));
 system.runInterval(() => { try { set.settlementTick(); } catch (e) { console.error('TICK', e); errs.push(String(e)); } }, 40);
@@ -92,7 +93,8 @@ check('reino completo', !!realm0.name && !!realm0.ruler?.title && ['monarquía',
 const spot2 = town.nextHouseSpot();
 check('nextHouseSpot dentro de la villa', !!spot2 && Math.hypot(spot2.x - starter.center.x, spot2.z - starter.center.z) < starter.radius, JSON.stringify(spot2));
 check('houseAt / chestAt', !!set.chestAt('minecraft:overworld', starter.chests[0]) && !!set.houseAt('minecraft:overworld', { x: starter.houses[0].min.x + 1, y: starter.houses[0].min.y + 1, z: starter.houses[0].min.z + 1 }));
-// Descubrimiento de la villa (el jugador ya está dentro)
+// Descubrimiento de la villa (el jugador ya está dentro; se espera a que acabe la cinemática de nacimiento)
+await until(() => !birth.cinematicActive?.(p), 20000);
 await advance(60);
 const d = store.getP(p);
 check('descubrimiento: visited', d.visited?.includes(starter.id));

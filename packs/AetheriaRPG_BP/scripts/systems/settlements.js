@@ -26,6 +26,7 @@ export const hooks = {
   onBuilt: undefined, // (settlement)
   onRaidStart: undefined, // (settlement)
   onRaidDefended: undefined, // (player, settlement)
+  skipDiscovery: undefined, // (player) => boolean — p. ej. durante la cinemática de nacimiento
 };
 
 const OW = 'minecraft:overworld';
@@ -1851,6 +1852,7 @@ function discoveryTick(player) {
   let dimId;
   let loc;
   try { dimId = player.dimension.id; loc = player.location; } catch { return; }
+  try { if (hooks.skipDiscovery?.(player)) return; } catch {}
   const s = settlementAt(dimId, loc);
   const prev = current.get(player.id);
   if ((s?.id) === prev) return;
