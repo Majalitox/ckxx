@@ -53,7 +53,7 @@ export async function info(player, title, body) {
 /** Pide un texto al jugador. Devuelve la cadena o undefined. */
 export async function ask(player, title, label, placeholder = '') {
   const f = new ModalFormData().title(title).textField(label, placeholder);
-  f.submitButton('Enviar');
+  try { f.submitButton('Enviar'); } catch {}
   const r = await show(f, player);
   if (!r || r.canceled || !r.formValues) return undefined;
   const v = r.formValues.find((x) => typeof x === 'string');
@@ -63,7 +63,7 @@ export async function ask(player, title, label, placeholder = '') {
 /** Desplegable simple: devuelve el índice elegido. */
 export async function choose(player, title, label, options) {
   const f = new ModalFormData().title(title).dropdown(label, options);
-  f.submitButton('Aceptar');
+  try { f.submitButton('Aceptar'); } catch {}
   const r = await show(f, player);
   if (!r || r.canceled || !r.formValues) return undefined;
   const v = r.formValues.find((x) => typeof x === 'number');
