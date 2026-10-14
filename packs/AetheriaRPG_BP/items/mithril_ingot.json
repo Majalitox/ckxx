@@ -1,0 +1,22 @@
+{
+  "format_version": "1.21.40",
+  "minecraft:item": {
+    "description": {
+      "identifier": "rpg:mithril_ingot",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "textures": {
+          "default": "rpg_mithril_ingot"
+        }
+      },
+      "minecraft:display_name": {
+        "value": "Lingote de Mitrilo"
+      },
+      "minecraft:max_stack_size": 64
+    }
+  }
+}

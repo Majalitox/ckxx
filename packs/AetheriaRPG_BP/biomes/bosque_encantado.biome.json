@@ -1,0 +1,51 @@
+{
+  "format_version": "1.21.110",
+  "minecraft:biome": {
+    "description": {
+      "identifier": "rpg:bosque_encantado"
+    },
+    "components": {
+      "minecraft:climate": {
+        "downfall": 0.8,
+        "snow_accumulation": [
+          0.0,
+          0.125
+        ],
+        "temperature": 0.7
+      },
+      "minecraft:surface_builder": {
+        "builder": {
+          "type": "minecraft:overworld",
+          "top_material": "minecraft:moss_block",
+          "mid_material": "minecraft:dirt",
+          "foundation_material": "minecraft:stone",
+          "sea_floor_material": "minecraft:gravel",
+          "sea_material": "minecraft:water",
+          "sea_floor_depth": 7
+        }
+      },
+      "minecraft:replace_biomes": {
+        "replacements": [
+          {
+            "dimension": "minecraft:overworld",
+            "targets": [
+              "forest",
+              "birch_forest"
+            ],
+            "amount": 0.25,
+            "noise_frequency_scale": 1.0
+          }
+        ]
+      },
+      "minecraft:tags": {
+        "tags": [
+          "animal",
+          "monster",
+          "overworld",
+          "forest",
+          "rpg_enchanted"
+        ]
+      }
+    }
+  }
+}

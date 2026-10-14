@@ -1,0 +1,48 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "rpg:spirit",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "v0": "textures/entity/rpg/spirit/spirit_0",
+        "v1": "textures/entity/rpg/spirit/spirit_1",
+        "v2": "textures/entity/rpg/spirit/spirit_2",
+        "v3": "textures/entity/rpg/spirit/spirit_3",
+        "v4": "textures/entity/rpg/spirit/spirit_4",
+        "v5": "textures/entity/rpg/spirit/spirit_5",
+        "v6": "textures/entity/rpg/spirit/spirit_6",
+        "v7": "textures/entity/rpg/spirit/spirit_7",
+        "v8": "textures/entity/rpg/spirit/spirit_8",
+        "v9": "textures/entity/rpg/spirit/spirit_9",
+        "v10": "textures/entity/rpg/spirit/spirit_10",
+        "v11": "textures/entity/rpg/spirit/spirit_11"
+      },
+      "geometry": {
+        "wisp": "geometry.rpg.wisp",
+        "humanoid": "geometry.rpg.humanoid",
+        "quadruped": "geometry.rpg.quadruped"
+      },
+      "animations": {
+        "float": "animation.rpg.wisp.float",
+        "walk": "animation.rpg.humanoid.walk",
+        "qwalk": "animation.rpg.quadruped.walk"
+      },
+      "scripts": {
+        "pre_animation": [
+          "v.v = q.property('rpg:variant'); v.geo_idx = (v.v == 2 || v.v == 7 || v.v == 8) ? 1 : ((v.v == 4 || v.v == 5 || v.v == 9) ? 2 : 0);"
+        ],
+        "animate": [
+          "float",
+          "walk",
+          "qwalk"
+        ]
+      },
+      "render_controllers": [
+        "controller.render.rpg.spirit"
+      ]
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_furnace": {
+    "description": {
+      "identifier": "rpg:smelt_adamantite"
+    },
+    "tags": [
+      "furnace",
+      "blast_furnace"
+    ],
+    "input": "rpg:raw_adamantite",
+    "output": "rpg:adamantite_ingot"
+  }
+}

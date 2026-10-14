@@ -1,0 +1,51 @@
+{
+  "format_version": "1.21.110",
+  "minecraft:biome": {
+    "description": {
+      "identifier": "rpg:tierras_malditas"
+    },
+    "components": {
+      "minecraft:climate": {
+        "downfall": 0.2,
+        "snow_accumulation": [
+          0.0,
+          0.125
+        ],
+        "temperature": 0.9
+      },
+      "minecraft:surface_builder": {
+        "builder": {
+          "type": "minecraft:overworld",
+          "top_material": "minecraft:podzol",
+          "mid_material": "minecraft:coarse_dirt",
+          "foundation_material": "minecraft:stone",
+          "sea_floor_material": "minecraft:gravel",
+          "sea_material": "minecraft:water",
+          "sea_floor_depth": 7
+        }
+      },
+      "minecraft:replace_biomes": {
+        "replacements": [
+          {
+            "dimension": "minecraft:overworld",
+            "targets": [
+              "plains",
+              "savanna"
+            ],
+            "amount": 0.12,
+            "noise_frequency_scale": 1.0
+          }
+        ]
+      },
+      "minecraft:tags": {
+        "tags": [
+          "animal",
+          "monster",
+          "overworld",
+          "plains",
+          "rpg_cursed"
+        ]
+      }
+    }
+  }
+}

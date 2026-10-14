@@ -1,0 +1,36 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "rpg:dark_mage",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/rpg/mob/dark_mage"
+      },
+      "geometry": {
+        "default": "geometry.rpg.humanoid"
+      },
+      "render_controllers": [
+        "controller.render.rpg.default"
+      ],
+      "spawn_egg": {
+        "base_color": "#3a1a5a",
+        "overlay_color": "#c040ff"
+      },
+      "animations": {
+        "walk": "animation.rpg.humanoid.walk",
+        "look": "animation.rpg.look_at_target",
+        "attack": "animation.rpg.humanoid.attack"
+      },
+      "scripts": {
+        "animate": [
+          "walk",
+          "look",
+          "attack"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,249 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "rpg:spirit",
+      "is_spawnable": false,
+      "is_summonable": true,
+      "properties": {
+        "rpg:variant": {
+          "type": "int",
+          "range": [
+            0,
+            11
+          ],
+          "default": 0,
+          "client_sync": true
+        }
+      }
+    },
+    "component_groups": {
+      "rpg:power_0": {
+        "minecraft:health": {
+          "value": 20,
+          "max": 20
+        },
+        "minecraft:attack": {
+          "damage": 4
+        }
+      },
+      "rpg:power_1": {
+        "minecraft:health": {
+          "value": 35,
+          "max": 35
+        },
+        "minecraft:attack": {
+          "damage": 7
+        }
+      },
+      "rpg:power_2": {
+        "minecraft:health": {
+          "value": 55,
+          "max": 55
+        },
+        "minecraft:attack": {
+          "damage": 11
+        }
+      },
+      "rpg:power_3": {
+        "minecraft:health": {
+          "value": 80,
+          "max": 80
+        },
+        "minecraft:attack": {
+          "damage": 16
+        }
+      },
+      "rpg:power_4": {
+        "minecraft:health": {
+          "value": 120,
+          "max": 120
+        },
+        "minecraft:attack": {
+          "damage": 24
+        }
+      }
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": [
+          "rpg_spirit",
+          "rpg_ally"
+        ]
+      },
+      "minecraft:health": {
+        "value": 20,
+        "max": 20
+      },
+      "minecraft:attack": {
+        "damage": 4
+      },
+      "minecraft:collision_box": {
+        "width": 0.7,
+        "height": 1.2
+      },
+      "minecraft:movement": {
+        "value": 0.32
+      },
+      "minecraft:movement.basic": {},
+      "minecraft:navigation.walk": {
+        "can_path_over_water": true,
+        "avoid_water": false
+      },
+      "minecraft:jump.static": {},
+      "minecraft:physics": {},
+      "minecraft:pushable": {
+        "is_pushable": true,
+        "is_pushable_by_piston": true
+      },
+      "minecraft:fire_immune": {},
+      "minecraft:nameable": {
+        "always_show": false
+      },
+      "minecraft:breathable": {
+        "total_supply": 15,
+        "suffocate_time": 0,
+        "breathes_water": true
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "on_damage": {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "player"
+              }
+            },
+            "deals_damage": "no"
+          },
+          {
+            "cause": "fall",
+            "deals_damage": "no"
+          },
+          {
+            "cause": "suffocation",
+            "deals_damage": "no"
+          }
+        ]
+      },
+      "minecraft:behavior.float": {
+        "priority": 0
+      },
+      "minecraft:behavior.melee_attack": {
+        "priority": 2,
+        "speed_multiplier": 1.3,
+        "track_target": true
+      },
+      "minecraft:behavior.nearest_attackable_target": {
+        "priority": 1,
+        "must_see": false,
+        "reselect_targets": true,
+        "within_radius": 18,
+        "entity_types": [
+          {
+            "filters": {
+              "test": "is_family",
+              "subject": "other",
+              "value": "monster"
+            },
+            "max_dist": 18
+          }
+        ]
+      },
+      "minecraft:behavior.random_stroll": {
+        "priority": 6,
+        "speed_multiplier": 0.8
+      },
+      "minecraft:behavior.look_at_player": {
+        "priority": 7,
+        "look_distance": 6
+      },
+      "minecraft:conditional_bandwidth_optimization": {}
+    },
+    "events": {
+      "rpg:power_0": {
+        "remove": {
+          "component_groups": [
+            "rpg:power_1",
+            "rpg:power_2",
+            "rpg:power_3",
+            "rpg:power_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:power_0"
+          ]
+        }
+      },
+      "rpg:power_1": {
+        "remove": {
+          "component_groups": [
+            "rpg:power_0",
+            "rpg:power_2",
+            "rpg:power_3",
+            "rpg:power_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:power_1"
+          ]
+        }
+      },
+      "rpg:power_2": {
+        "remove": {
+          "component_groups": [
+            "rpg:power_0",
+            "rpg:power_1",
+            "rpg:power_3",
+            "rpg:power_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:power_2"
+          ]
+        }
+      },
+      "rpg:power_3": {
+        "remove": {
+          "component_groups": [
+            "rpg:power_0",
+            "rpg:power_1",
+            "rpg:power_2",
+            "rpg:power_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:power_3"
+          ]
+        }
+      },
+      "rpg:power_4": {
+        "remove": {
+          "component_groups": [
+            "rpg:power_0",
+            "rpg:power_1",
+            "rpg:power_2",
+            "rpg:power_3"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:power_4"
+          ]
+        }
+      },
+      "minecraft:entity_spawned": {
+        "add": {
+          "component_groups": [
+            "rpg:power_0"
+          ]
+        }
+      }
+    }
+  }
+}

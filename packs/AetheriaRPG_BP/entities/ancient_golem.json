@@ -1,0 +1,274 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "rpg:ancient_golem",
+      "is_spawnable": true,
+      "is_summonable": true
+    },
+    "component_groups": {
+      "rpg:tier_0": {
+        "minecraft:health": {
+          "value": 650,
+          "max": 650
+        },
+        "minecraft:attack": {
+          "damage": 16.0
+        }
+      },
+      "rpg:tier_1": {
+        "minecraft:health": {
+          "value": 975,
+          "max": 975
+        },
+        "minecraft:attack": {
+          "damage": 21.6
+        }
+      },
+      "rpg:tier_2": {
+        "minecraft:health": {
+          "value": 1430,
+          "max": 1430
+        },
+        "minecraft:attack": {
+          "damage": 27.2
+        }
+      },
+      "rpg:tier_3": {
+        "minecraft:health": {
+          "value": 2080,
+          "max": 2080
+        },
+        "minecraft:attack": {
+          "damage": 32.8
+        }
+      },
+      "rpg:tier_4": {
+        "minecraft:health": {
+          "value": 2925,
+          "max": 2925
+        },
+        "minecraft:attack": {
+          "damage": 38.4
+        }
+      }
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": [
+          "monster",
+          "mob",
+          "rpg_monster",
+          "rpg_boss",
+          "boss"
+        ]
+      },
+      "minecraft:collision_box": {
+        "width": 1.6,
+        "height": 4.6
+      },
+      "minecraft:scale": {
+        "value": 2.6
+      },
+      "minecraft:health": {
+        "value": 650,
+        "max": 650
+      },
+      "minecraft:attack": {
+        "damage": 16
+      },
+      "minecraft:movement": {
+        "value": 0.2
+      },
+      "minecraft:movement.basic": {},
+      "minecraft:navigation.walk": {
+        "can_path_over_water": true,
+        "avoid_water": true,
+        "can_open_doors": false
+      },
+      "minecraft:jump.static": {},
+      "minecraft:can_climb": {},
+      "minecraft:physics": {},
+      "minecraft:pushable": {
+        "is_pushable": false,
+        "is_pushable_by_piston": false
+      },
+      "minecraft:breathable": {
+        "total_supply": 15,
+        "suffocate_time": 0
+      },
+      "minecraft:nameable": {},
+      "minecraft:follow_range": {
+        "value": 48
+      },
+      "minecraft:loot": {
+        "table": "loot_tables/entities/rpg_ancient_golem.json"
+      },
+      "minecraft:experience_reward": {
+        "on_death": "query.last_hit_by_player ? 40 : 0"
+      },
+      "minecraft:behavior.float": {
+        "priority": 0
+      },
+      "minecraft:behavior.hurt_by_target": {
+        "priority": 1
+      },
+      "minecraft:behavior.nearest_attackable_target": {
+        "priority": 2,
+        "must_see": false,
+        "reselect_targets": true,
+        "within_radius": 32,
+        "entity_types": [
+          {
+            "filters": {
+              "any_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "player"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_spirit"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "villager"
+                }
+              ]
+            },
+            "max_dist": 32
+          }
+        ]
+      },
+      "minecraft:behavior.random_stroll": {
+        "priority": 6,
+        "speed_multiplier": 0.8
+      },
+      "minecraft:behavior.look_at_player": {
+        "priority": 7,
+        "look_distance": 10
+      },
+      "minecraft:behavior.random_look_around": {
+        "priority": 8
+      },
+      "minecraft:conditional_bandwidth_optimization": {},
+      "minecraft:behavior.melee_attack": {
+        "priority": 3,
+        "speed_multiplier": 1.25,
+        "track_target": true
+      },
+      "minecraft:boss": {
+        "should_darken_sky": false,
+        "hud_range": 55,
+        "name": "Gólem Ancestral"
+      },
+      "minecraft:persistent": {},
+      "minecraft:knockback_resistance": {
+        "value": 1.0
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "cause": "fall",
+            "deals_damage": "no"
+          },
+          {
+            "cause": "suffocation",
+            "deals_damage": "no"
+          },
+          {
+            "cause": "drowning",
+            "deals_damage": "no"
+          }
+        ]
+      }
+    },
+    "events": {
+      "minecraft:entity_spawned": {
+        "add": {
+          "component_groups": [
+            "rpg:tier_0"
+          ]
+        }
+      },
+      "rpg:tier_0": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_1",
+            "rpg:tier_2",
+            "rpg:tier_3",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_0"
+          ]
+        }
+      },
+      "rpg:tier_1": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_2",
+            "rpg:tier_3",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_1"
+          ]
+        }
+      },
+      "rpg:tier_2": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_1",
+            "rpg:tier_3",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_2"
+          ]
+        }
+      },
+      "rpg:tier_3": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_1",
+            "rpg:tier_2",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_3"
+          ]
+        }
+      },
+      "rpg:tier_4": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_1",
+            "rpg:tier_2",
+            "rpg:tier_3"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_4"
+          ]
+        }
+      }
+    }
+  }
+}

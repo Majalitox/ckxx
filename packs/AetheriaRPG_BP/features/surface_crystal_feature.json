@@ -1,0 +1,21 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:single_block_feature": {
+    "description": {
+      "identifier": "rpg:surface_crystal_feature"
+    },
+    "places_block": "rpg:mana_crystal_block",
+    "enforce_placement_rules": false,
+    "enforce_survivability_rules": false,
+    "may_attach_to": {
+      "min_sides_must_attach": 1,
+      "bottom": [
+        "minecraft:grass_block",
+        "minecraft:snow",
+        "minecraft:stone",
+        "minecraft:moss_block",
+        "minecraft:packed_ice"
+      ]
+    }
+  }
+}

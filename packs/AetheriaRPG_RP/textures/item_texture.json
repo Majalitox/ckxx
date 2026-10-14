@@ -1,0 +1,99 @@
+{
+  "resource_pack_name": "aetheria_rpg",
+  "texture_name": "atlas.items",
+  "texture_data": {
+    "rpg_journal": {
+      "textures": "textures/items/rpg_journal"
+    },
+    "rpg_grimoire": {
+      "textures": "textures/items/rpg_grimoire"
+    },
+    "rpg_guild_card": {
+      "textures": "textures/items/rpg_guild_card"
+    },
+    "rpg_mana_potion": {
+      "textures": "textures/items/rpg_mana_potion"
+    },
+    "rpg_greater_mana_potion": {
+      "textures": "textures/items/rpg_greater_mana_potion"
+    },
+    "rpg_elixir_life": {
+      "textures": "textures/items/rpg_elixir_life"
+    },
+    "rpg_elixir_strength": {
+      "textures": "textures/items/rpg_elixir_strength"
+    },
+    "rpg_elixir_swiftness": {
+      "textures": "textures/items/rpg_elixir_swiftness"
+    },
+    "rpg_elixir_elven": {
+      "textures": "textures/items/rpg_elixir_elven"
+    },
+    "rpg_raw_mithril": {
+      "textures": "textures/items/rpg_raw_mithril"
+    },
+    "rpg_mithril_ingot": {
+      "textures": "textures/items/rpg_mithril_ingot"
+    },
+    "rpg_raw_adamantite": {
+      "textures": "textures/items/rpg_raw_adamantite"
+    },
+    "rpg_adamantite_ingot": {
+      "textures": "textures/items/rpg_adamantite_ingot"
+    },
+    "rpg_mana_crystal_shard": {
+      "textures": "textures/items/rpg_mana_crystal_shard"
+    },
+    "rpg_rune_stone": {
+      "textures": "textures/items/rpg_rune_stone"
+    },
+    "rpg_monster_core": {
+      "textures": "textures/items/rpg_monster_core"
+    },
+    "rpg_boss_core": {
+      "textures": "textures/items/rpg_boss_core"
+    },
+    "rpg_seal_goblin_king": {
+      "textures": "textures/items/rpg_seal_goblin_king"
+    },
+    "rpg_seal_spider_queen": {
+      "textures": "textures/items/rpg_seal_spider_queen"
+    },
+    "rpg_seal_ancient_golem": {
+      "textures": "textures/items/rpg_seal_ancient_golem"
+    },
+    "rpg_seal_lich": {
+      "textures": "textures/items/rpg_seal_lich"
+    },
+    "rpg_seal_demon_lord": {
+      "textures": "textures/items/rpg_seal_demon_lord"
+    },
+    "rpg_seal_ash_dragon": {
+      "textures": "textures/items/rpg_seal_ash_dragon"
+    },
+    "rpg_seal_void_king": {
+      "textures": "textures/items/rpg_seal_void_king"
+    },
+    "rpg_mithril_sword": {
+      "textures": "textures/items/rpg_mithril_sword"
+    },
+    "rpg_adamantite_sword": {
+      "textures": "textures/items/rpg_adamantite_sword"
+    },
+    "rpg_dwarven_greataxe": {
+      "textures": "textures/items/rpg_dwarven_greataxe"
+    },
+    "rpg_runic_hammer": {
+      "textures": "textures/items/rpg_runic_hammer"
+    },
+    "rpg_staff_apprentice": {
+      "textures": "textures/items/rpg_staff_apprentice"
+    },
+    "rpg_staff_archmage": {
+      "textures": "textures/items/rpg_staff_archmage"
+    },
+    "rpg_wedding_ring": {
+      "textures": "textures/items/rpg_wedding_ring"
+    }
+  }
+}

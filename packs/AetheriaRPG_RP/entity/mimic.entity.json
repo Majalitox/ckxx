@@ -1,0 +1,32 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "rpg:mimic",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/rpg/mob/mimic"
+      },
+      "geometry": {
+        "default": "geometry.rpg.mimic"
+      },
+      "render_controllers": [
+        "controller.render.rpg.default"
+      ],
+      "spawn_egg": {
+        "base_color": "#8a5a2a",
+        "overlay_color": "#e8c040"
+      },
+      "animations": {
+        "chomp": "animation.rpg.mimic.chomp"
+      },
+      "scripts": {
+        "animate": [
+          "chomp"
+        ]
+      }
+    }
+  }
+}

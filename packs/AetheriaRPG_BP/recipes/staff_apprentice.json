@@ -1,0 +1,28 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "rpg:staff_apprentice"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      "  C",
+      " S ",
+      "S  "
+    ],
+    "key": {
+      "C": {
+        "item": "rpg:mana_crystal_shard"
+      },
+      "S": {
+        "item": "minecraft:stick"
+      }
+    },
+    "result": {
+      "item": "rpg:staff_apprentice",
+      "count": 1
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Aetheria RPG §7(Recursos)",
+    "description": "Modelos, texturas, partículas y textos de Aetheria RPG.",
+    "uuid": "d6b4fa05-8e7c-4b1d-af40-5c9eab1d2a34",
+    "version": [
+      1,
+      0,
+      0
+    ],
+    "min_engine_version": [
+      1,
+      21,
+      90
+    ]
+  },
+  "modules": [
+    {
+      "type": "resources",
+      "uuid": "e7c50b16-9f8d-4c2e-b051-6daf0c2e3b45",
+      "version": [
+        1,
+        0,
+        0
+      ]
+    }
+  ],
+  "dependencies": [
+    {
+      "uuid": "a3e1c7d2-5b4f-4e8a-9c1d-2f6b7e8a9d01",
+      "version": [
+        1,
+        0,
+        0
+      ]
+    }
+  ],
+  "metadata": {
+    "authors": [
+      "Aetheria RPG"
+    ],
+    "product_type": "addon"
+  }
+}

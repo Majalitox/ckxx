@@ -1,0 +1,36 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "rpg:void_king",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/rpg/boss/void_king"
+      },
+      "geometry": {
+        "default": "geometry.rpg.humanoid_crown_horns"
+      },
+      "render_controllers": [
+        "controller.render.rpg.default"
+      ],
+      "spawn_egg": {
+        "base_color": "#1a0a2a",
+        "overlay_color": "#d040ff"
+      },
+      "animations": {
+        "walk": "animation.rpg.humanoid.walk",
+        "look": "animation.rpg.look_at_target",
+        "attack": "animation.rpg.humanoid.attack"
+      },
+      "scripts": {
+        "animate": [
+          "walk",
+          "look",
+          "attack"
+        ]
+      }
+    }
+  }
+}

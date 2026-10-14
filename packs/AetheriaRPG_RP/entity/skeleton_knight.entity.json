@@ -1,0 +1,36 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "rpg:skeleton_knight",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/rpg/mob/skeleton_knight"
+      },
+      "geometry": {
+        "default": "geometry.rpg.humanoid"
+      },
+      "render_controllers": [
+        "controller.render.rpg.default"
+      ],
+      "spawn_egg": {
+        "base_color": "#d8d8c8",
+        "overlay_color": "#5a5a62"
+      },
+      "animations": {
+        "walk": "animation.rpg.humanoid.walk",
+        "look": "animation.rpg.look_at_target",
+        "attack": "animation.rpg.humanoid.attack"
+      },
+      "scripts": {
+        "animate": [
+          "walk",
+          "look",
+          "attack"
+        ]
+      }
+    }
+  }
+}

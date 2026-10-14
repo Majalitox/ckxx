@@ -1,0 +1,37 @@
+{
+  "format_version": "1.21.40",
+  "minecraft:item": {
+    "description": {
+      "identifier": "rpg:dwarven_greataxe",
+      "menu_category": {
+        "category": "equipment"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "textures": {
+          "default": "rpg_dwarven_greataxe"
+        }
+      },
+      "minecraft:display_name": {
+        "value": "Gran Hacha Enana"
+      },
+      "minecraft:max_stack_size": 1,
+      "minecraft:hand_equipped": true,
+      "minecraft:damage": 12,
+      "minecraft:durability": {
+        "max_durability": 2000
+      },
+      "minecraft:enchantable": {
+        "slot": "axe",
+        "value": 14
+      },
+      "minecraft:can_destroy_in_creative": false,
+      "minecraft:tags": {
+        "tags": [
+          "minecraft:is_axe"
+        ]
+      }
+    }
+  }
+}

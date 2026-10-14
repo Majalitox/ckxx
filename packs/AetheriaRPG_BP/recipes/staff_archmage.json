@@ -1,0 +1,31 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "rpg:staff_archmage"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      " DC",
+      " AD",
+      "A  "
+    ],
+    "key": {
+      "C": {
+        "item": "rpg:boss_core"
+      },
+      "D": {
+        "item": "minecraft:diamond"
+      },
+      "A": {
+        "item": "rpg:adamantite_ingot"
+      }
+    },
+    "result": {
+      "item": "rpg:staff_archmage",
+      "count": 1
+    }
+  }
+}

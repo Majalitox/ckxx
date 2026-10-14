@@ -1,0 +1,28 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "rpg:mithril_sword"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      " M ",
+      " M ",
+      " S "
+    ],
+    "key": {
+      "M": {
+        "item": "rpg:mithril_ingot"
+      },
+      "S": {
+        "item": "minecraft:stick"
+      }
+    },
+    "result": {
+      "item": "rpg:mithril_sword",
+      "count": 1
+    }
+  }
+}

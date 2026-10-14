@@ -1,0 +1,27 @@
+{
+  "format_version": "1.21.40",
+  "minecraft:item": {
+    "description": {
+      "identifier": "rpg:seal_spider_queen",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "textures": {
+          "default": "rpg_seal_spider_queen"
+        }
+      },
+      "minecraft:display_name": {
+        "value": "Sello de la Reina Araña"
+      },
+      "minecraft:max_stack_size": 16,
+      "minecraft:glint": true,
+      "minecraft:cooldown": {
+        "category": "rpg_seal_spider_queen",
+        "duration": 1
+      }
+    }
+  }
+}

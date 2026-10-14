@@ -1,0 +1,28 @@
+{
+  "format_version": "1.20.10",
+  "minecraft:recipe_shaped": {
+    "description": {
+      "identifier": "rpg:adamantite_sword"
+    },
+    "tags": [
+      "crafting_table"
+    ],
+    "pattern": [
+      " A ",
+      " A ",
+      " S "
+    ],
+    "key": {
+      "A": {
+        "item": "rpg:adamantite_ingot"
+      },
+      "S": {
+        "item": "minecraft:stick"
+      }
+    },
+    "result": {
+      "item": "rpg:adamantite_sword",
+      "count": 1
+    }
+  }
+}

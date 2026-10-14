@@ -1,0 +1,80 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "rpg:npc",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "s0": "textures/entity/rpg/npc/npc_0",
+        "s1": "textures/entity/rpg/npc/npc_1",
+        "s2": "textures/entity/rpg/npc/npc_2",
+        "s3": "textures/entity/rpg/npc/npc_3",
+        "s4": "textures/entity/rpg/npc/npc_4",
+        "s5": "textures/entity/rpg/npc/npc_5",
+        "s6": "textures/entity/rpg/npc/npc_6",
+        "s7": "textures/entity/rpg/npc/npc_7",
+        "s8": "textures/entity/rpg/npc/npc_8",
+        "s9": "textures/entity/rpg/npc/npc_9",
+        "s10": "textures/entity/rpg/npc/npc_10",
+        "s11": "textures/entity/rpg/npc/npc_11",
+        "s12": "textures/entity/rpg/npc/npc_12",
+        "s13": "textures/entity/rpg/npc/npc_13",
+        "s14": "textures/entity/rpg/npc/npc_14",
+        "s15": "textures/entity/rpg/npc/npc_15",
+        "s16": "textures/entity/rpg/npc/npc_16",
+        "s17": "textures/entity/rpg/npc/npc_17",
+        "s18": "textures/entity/rpg/npc/npc_18",
+        "s19": "textures/entity/rpg/npc/npc_19",
+        "s20": "textures/entity/rpg/npc/npc_20",
+        "s21": "textures/entity/rpg/npc/npc_21",
+        "s22": "textures/entity/rpg/npc/npc_22",
+        "s23": "textures/entity/rpg/npc/npc_23",
+        "s24": "textures/entity/rpg/npc/npc_24",
+        "s25": "textures/entity/rpg/npc/npc_25",
+        "s26": "textures/entity/rpg/npc/npc_26",
+        "s27": "textures/entity/rpg/npc/npc_27",
+        "s28": "textures/entity/rpg/npc/npc_28",
+        "s29": "textures/entity/rpg/npc/npc_29",
+        "s30": "textures/entity/rpg/npc/npc_30",
+        "s31": "textures/entity/rpg/npc/npc_31",
+        "s32": "textures/entity/rpg/npc/npc_32",
+        "s33": "textures/entity/rpg/npc/npc_33",
+        "s34": "textures/entity/rpg/npc/npc_34",
+        "s35": "textures/entity/rpg/npc/npc_35",
+        "s36": "textures/entity/rpg/npc/npc_36",
+        "s37": "textures/entity/rpg/npc/npc_37",
+        "s38": "textures/entity/rpg/npc/npc_38",
+        "s39": "textures/entity/rpg/npc/npc_39"
+      },
+      "geometry": {
+        "g0": "geometry.rpg.humanoid",
+        "g1": "geometry.rpg.humanoid_horns",
+        "g2": "geometry.rpg.humanoid_elf",
+        "g3": "geometry.rpg.humanoid_beast",
+        "g4": "geometry.rpg.humanoid_halo",
+        "g5": "geometry.rpg.humanoid_fairy"
+      },
+      "animations": {
+        "walk": "animation.rpg.humanoid.walk",
+        "look": "animation.rpg.look_at_target",
+        "idle": "animation.rpg.humanoid.idle"
+      },
+      "scripts": {
+        "animate": [
+          "walk",
+          "look",
+          "idle"
+        ]
+      },
+      "render_controllers": [
+        "controller.render.rpg.npc"
+      ],
+      "spawn_egg": {
+        "base_color": "#e0c080",
+        "overlay_color": "#3a6ea5"
+      }
+    }
+  }
+}

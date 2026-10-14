@@ -1,0 +1,1031 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "rpg:npc",
+      "is_spawnable": true,
+      "is_summonable": true,
+      "properties": {
+        "rpg:skin": {
+          "type": "int",
+          "range": [
+            0,
+            39
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "rpg:geo": {
+          "type": "int",
+          "range": [
+            0,
+            5
+          ],
+          "default": 0,
+          "client_sync": true
+        }
+      }
+    },
+    "component_groups": {
+      "rpg:wanderer": {
+        "minecraft:despawn": {
+          "despawn_from_distance": {
+            "min_distance": 48,
+            "max_distance": 96
+          }
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 6,
+          "speed_multiplier": 0.6
+        }
+      },
+      "rpg:resident": {
+        "minecraft:persistent": {},
+        "minecraft:home": {
+          "restriction_radius": 10
+        },
+        "minecraft:behavior.move_towards_home_restriction": {
+          "priority": 4,
+          "speed_multiplier": 0.6
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 6,
+          "speed_multiplier": 0.5,
+          "xz_dist": 4
+        }
+      },
+      "rpg:staff": {
+        "minecraft:persistent": {},
+        "minecraft:home": {
+          "restriction_radius": 3
+        },
+        "minecraft:behavior.move_towards_home_restriction": {
+          "priority": 3,
+          "speed_multiplier": 0.6
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 7,
+          "speed_multiplier": 0.4,
+          "xz_dist": 2,
+          "interval": 400
+        }
+      },
+      "rpg:scale_30": {
+        "minecraft:scale": {
+          "value": 0.3
+        }
+      },
+      "rpg:scale_35": {
+        "minecraft:scale": {
+          "value": 0.35
+        }
+      },
+      "rpg:scale_40": {
+        "minecraft:scale": {
+          "value": 0.4
+        }
+      },
+      "rpg:scale_45": {
+        "minecraft:scale": {
+          "value": 0.45
+        }
+      },
+      "rpg:scale_50": {
+        "minecraft:scale": {
+          "value": 0.5
+        }
+      },
+      "rpg:scale_55": {
+        "minecraft:scale": {
+          "value": 0.55
+        }
+      },
+      "rpg:scale_60": {
+        "minecraft:scale": {
+          "value": 0.6
+        }
+      },
+      "rpg:scale_65": {
+        "minecraft:scale": {
+          "value": 0.65
+        }
+      },
+      "rpg:scale_70": {
+        "minecraft:scale": {
+          "value": 0.7
+        }
+      },
+      "rpg:scale_75": {
+        "minecraft:scale": {
+          "value": 0.75
+        }
+      },
+      "rpg:scale_80": {
+        "minecraft:scale": {
+          "value": 0.8
+        }
+      },
+      "rpg:scale_85": {
+        "minecraft:scale": {
+          "value": 0.85
+        }
+      },
+      "rpg:scale_90": {
+        "minecraft:scale": {
+          "value": 0.9
+        }
+      },
+      "rpg:scale_95": {
+        "minecraft:scale": {
+          "value": 0.95
+        }
+      },
+      "rpg:scale_100": {
+        "minecraft:scale": {
+          "value": 1.0
+        }
+      },
+      "rpg:scale_105": {
+        "minecraft:scale": {
+          "value": 1.05
+        }
+      },
+      "rpg:scale_110": {
+        "minecraft:scale": {
+          "value": 1.1
+        }
+      },
+      "rpg:scale_115": {
+        "minecraft:scale": {
+          "value": 1.15
+        }
+      },
+      "rpg:scale_120": {
+        "minecraft:scale": {
+          "value": 1.2
+        }
+      },
+      "rpg:scale_125": {
+        "minecraft:scale": {
+          "value": 1.25
+        }
+      },
+      "rpg:scale_130": {
+        "minecraft:scale": {
+          "value": 1.3
+        }
+      },
+      "rpg:scale_135": {
+        "minecraft:scale": {
+          "value": 1.35
+        }
+      }
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": [
+          "npc",
+          "rpg_npc",
+          "mob"
+        ]
+      },
+      "minecraft:health": {
+        "value": 40,
+        "max": 40
+      },
+      "minecraft:collision_box": {
+        "width": 0.6,
+        "height": 1.8
+      },
+      "minecraft:movement": {
+        "value": 0.5
+      },
+      "minecraft:movement.basic": {},
+      "minecraft:navigation.walk": {
+        "can_path_over_water": true,
+        "avoid_water": true,
+        "avoid_damage_blocks": true,
+        "can_open_doors": true,
+        "can_pass_doors": true
+      },
+      "minecraft:jump.static": {},
+      "minecraft:can_climb": {},
+      "minecraft:physics": {},
+      "minecraft:pushable": {
+        "is_pushable": true,
+        "is_pushable_by_piston": true
+      },
+      "minecraft:nameable": {
+        "always_show": true,
+        "allow_name_tag_renaming": false
+      },
+      "minecraft:breathable": {
+        "total_supply": 15,
+        "suffocate_time": 0
+      },
+      "minecraft:interact": {
+        "interactions": [
+          {
+            "on_interact": {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "player"
+              },
+              "event": "rpg:interacted"
+            },
+            "interact_text": "action.interact.rpg_talk"
+          }
+        ]
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "on_damage": {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "player"
+              }
+            },
+            "deals_damage": "yes"
+          },
+          {
+            "cause": "all",
+            "deals_damage": "no"
+          }
+        ]
+      },
+      "minecraft:behavior.float": {
+        "priority": 0
+      },
+      "minecraft:behavior.look_at_player": {
+        "priority": 5,
+        "look_distance": 8,
+        "probability": 0.3
+      },
+      "minecraft:behavior.random_look_around": {
+        "priority": 8
+      },
+      "minecraft:behavior.open_door": {
+        "priority": 6,
+        "close_door_after": true
+      },
+      "minecraft:conditional_bandwidth_optimization": {}
+    },
+    "events": {
+      "minecraft:entity_spawned": {
+        "add": {
+          "component_groups": [
+            "rpg:wanderer"
+          ]
+        }
+      },
+      "rpg:spawn_resident": {
+        "add": {
+          "component_groups": [
+            "rpg:resident"
+          ]
+        }
+      },
+      "rpg:spawn_staff": {
+        "add": {
+          "component_groups": [
+            "rpg:staff"
+          ]
+        }
+      },
+      "rpg:make_resident": {
+        "remove": {
+          "component_groups": [
+            "rpg:wanderer",
+            "rpg:staff"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:resident"
+          ]
+        }
+      },
+      "rpg:make_staff": {
+        "remove": {
+          "component_groups": [
+            "rpg:wanderer",
+            "rpg:resident"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:staff"
+          ]
+        }
+      },
+      "rpg:interacted": {},
+      "rpg:scale_30": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_30"
+          ]
+        }
+      },
+      "rpg:scale_35": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_35"
+          ]
+        }
+      },
+      "rpg:scale_40": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_40"
+          ]
+        }
+      },
+      "rpg:scale_45": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_45"
+          ]
+        }
+      },
+      "rpg:scale_50": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_50"
+          ]
+        }
+      },
+      "rpg:scale_55": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_55"
+          ]
+        }
+      },
+      "rpg:scale_60": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_60"
+          ]
+        }
+      },
+      "rpg:scale_65": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_65"
+          ]
+        }
+      },
+      "rpg:scale_70": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_70"
+          ]
+        }
+      },
+      "rpg:scale_75": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_75"
+          ]
+        }
+      },
+      "rpg:scale_80": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_80"
+          ]
+        }
+      },
+      "rpg:scale_85": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_85"
+          ]
+        }
+      },
+      "rpg:scale_90": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_90"
+          ]
+        }
+      },
+      "rpg:scale_95": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_95"
+          ]
+        }
+      },
+      "rpg:scale_100": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_100"
+          ]
+        }
+      },
+      "rpg:scale_105": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_105"
+          ]
+        }
+      },
+      "rpg:scale_110": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_110"
+          ]
+        }
+      },
+      "rpg:scale_115": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_115"
+          ]
+        }
+      },
+      "rpg:scale_120": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_125",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_120"
+          ]
+        }
+      },
+      "rpg:scale_125": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_130",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_125"
+          ]
+        }
+      },
+      "rpg:scale_130": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_135"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_130"
+          ]
+        }
+      },
+      "rpg:scale_135": {
+        "remove": {
+          "component_groups": [
+            "rpg:scale_30",
+            "rpg:scale_35",
+            "rpg:scale_40",
+            "rpg:scale_45",
+            "rpg:scale_50",
+            "rpg:scale_55",
+            "rpg:scale_60",
+            "rpg:scale_65",
+            "rpg:scale_70",
+            "rpg:scale_75",
+            "rpg:scale_80",
+            "rpg:scale_85",
+            "rpg:scale_90",
+            "rpg:scale_95",
+            "rpg:scale_100",
+            "rpg:scale_105",
+            "rpg:scale_110",
+            "rpg:scale_115",
+            "rpg:scale_120",
+            "rpg:scale_125",
+            "rpg:scale_130"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:scale_135"
+          ]
+        }
+      }
+    }
+  }
+}

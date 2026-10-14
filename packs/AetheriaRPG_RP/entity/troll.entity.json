@@ -1,0 +1,36 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "rpg:troll",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/rpg/mob/troll"
+      },
+      "geometry": {
+        "default": "geometry.rpg.humanoid"
+      },
+      "render_controllers": [
+        "controller.render.rpg.default"
+      ],
+      "spawn_egg": {
+        "base_color": "#6b7a5a",
+        "overlay_color": "#5a3a1a"
+      },
+      "animations": {
+        "walk": "animation.rpg.humanoid.walk",
+        "look": "animation.rpg.look_at_target",
+        "attack": "animation.rpg.humanoid.attack"
+      },
+      "scripts": {
+        "animate": [
+          "walk",
+          "look",
+          "attack"
+        ]
+      }
+    }
+  }
+}

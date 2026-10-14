@@ -1,0 +1,26 @@
+{
+  "format_version": "1.21.40",
+  "minecraft:item": {
+    "description": {
+      "identifier": "rpg:journal",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "textures": {
+          "default": "rpg_journal"
+        }
+      },
+      "minecraft:display_name": {
+        "value": "Diario del Aventurero"
+      },
+      "minecraft:max_stack_size": 1,
+      "minecraft:cooldown": {
+        "category": "rpg_journal",
+        "duration": 0.5
+      }
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "format_version": "1.8.0",
+  "minecraft:spawn_rules": {
+    "description": {
+      "identifier": "rpg:fire_imp",
+      "population_control": "monster"
+    },
+    "conditions": [
+      {
+        "minecraft:weight": {
+          "default": 20
+        },
+        "minecraft:herd": {
+          "min_size": 1,
+          "max_size": 3
+        },
+        "minecraft:difficulty_filter": {
+          "min": "easy",
+          "max": "hard"
+        },
+        "minecraft:biome_filter": {
+          "any_of": [
+            {
+              "test": "has_biome_tag",
+              "operator": "==",
+              "value": "nether"
+            },
+            {
+              "test": "has_biome_tag",
+              "operator": "==",
+              "value": "rpg_ash"
+            }
+          ]
+        },
+        "minecraft:spawns_on_surface": {}
+      }
+    ]
+  }
+}

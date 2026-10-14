@@ -1,0 +1,274 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "rpg:spider_queen",
+      "is_spawnable": true,
+      "is_summonable": true
+    },
+    "component_groups": {
+      "rpg:tier_0": {
+        "minecraft:health": {
+          "value": 380,
+          "max": 380
+        },
+        "minecraft:attack": {
+          "damage": 11.0
+        }
+      },
+      "rpg:tier_1": {
+        "minecraft:health": {
+          "value": 570,
+          "max": 570
+        },
+        "minecraft:attack": {
+          "damage": 14.9
+        }
+      },
+      "rpg:tier_2": {
+        "minecraft:health": {
+          "value": 836,
+          "max": 836
+        },
+        "minecraft:attack": {
+          "damage": 18.7
+        }
+      },
+      "rpg:tier_3": {
+        "minecraft:health": {
+          "value": 1216,
+          "max": 1216
+        },
+        "minecraft:attack": {
+          "damage": 22.5
+        }
+      },
+      "rpg:tier_4": {
+        "minecraft:health": {
+          "value": 1710,
+          "max": 1710
+        },
+        "minecraft:attack": {
+          "damage": 26.4
+        }
+      }
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": [
+          "monster",
+          "mob",
+          "rpg_monster",
+          "rpg_boss",
+          "boss"
+        ]
+      },
+      "minecraft:collision_box": {
+        "width": 3.5,
+        "height": 2.2
+      },
+      "minecraft:scale": {
+        "value": 3.0
+      },
+      "minecraft:health": {
+        "value": 380,
+        "max": 380
+      },
+      "minecraft:attack": {
+        "damage": 11,
+        "effect_name": "poison",
+        "effect_duration": 4
+      },
+      "minecraft:movement": {
+        "value": 0.3
+      },
+      "minecraft:movement.basic": {},
+      "minecraft:jump.static": {},
+      "minecraft:can_climb": {},
+      "minecraft:physics": {},
+      "minecraft:pushable": {
+        "is_pushable": false,
+        "is_pushable_by_piston": false
+      },
+      "minecraft:breathable": {
+        "total_supply": 15,
+        "suffocate_time": 0
+      },
+      "minecraft:nameable": {},
+      "minecraft:follow_range": {
+        "value": 48
+      },
+      "minecraft:loot": {
+        "table": "loot_tables/entities/rpg_spider_queen.json"
+      },
+      "minecraft:experience_reward": {
+        "on_death": "query.last_hit_by_player ? 40 : 0"
+      },
+      "minecraft:behavior.float": {
+        "priority": 0
+      },
+      "minecraft:behavior.hurt_by_target": {
+        "priority": 1
+      },
+      "minecraft:behavior.nearest_attackable_target": {
+        "priority": 2,
+        "must_see": false,
+        "reselect_targets": true,
+        "within_radius": 32,
+        "entity_types": [
+          {
+            "filters": {
+              "any_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "player"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_spirit"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "villager"
+                }
+              ]
+            },
+            "max_dist": 32
+          }
+        ]
+      },
+      "minecraft:behavior.random_stroll": {
+        "priority": 6,
+        "speed_multiplier": 0.8
+      },
+      "minecraft:behavior.look_at_player": {
+        "priority": 7,
+        "look_distance": 10
+      },
+      "minecraft:behavior.random_look_around": {
+        "priority": 8
+      },
+      "minecraft:conditional_bandwidth_optimization": {},
+      "minecraft:behavior.melee_attack": {
+        "priority": 3,
+        "speed_multiplier": 1.25,
+        "track_target": true
+      },
+      "minecraft:boss": {
+        "should_darken_sky": false,
+        "hud_range": 55,
+        "name": "Reina Araña"
+      },
+      "minecraft:persistent": {},
+      "minecraft:knockback_resistance": {
+        "value": 0.8
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "cause": "fall",
+            "deals_damage": "no"
+          },
+          {
+            "cause": "suffocation",
+            "deals_damage": "no"
+          },
+          {
+            "cause": "drowning",
+            "deals_damage": "no"
+          }
+        ]
+      },
+      "minecraft:navigation.climb": {
+        "can_path_over_water": true
+      }
+    },
+    "events": {
+      "minecraft:entity_spawned": {
+        "add": {
+          "component_groups": [
+            "rpg:tier_0"
+          ]
+        }
+      },
+      "rpg:tier_0": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_1",
+            "rpg:tier_2",
+            "rpg:tier_3",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_0"
+          ]
+        }
+      },
+      "rpg:tier_1": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_2",
+            "rpg:tier_3",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_1"
+          ]
+        }
+      },
+      "rpg:tier_2": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_1",
+            "rpg:tier_3",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_2"
+          ]
+        }
+      },
+      "rpg:tier_3": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_1",
+            "rpg:tier_2",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_3"
+          ]
+        }
+      },
+      "rpg:tier_4": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_1",
+            "rpg:tier_2",
+            "rpg:tier_3"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_4"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,251 @@
+{
+  "format_version": "1.21.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "rpg:giant_spider",
+      "is_spawnable": true,
+      "is_summonable": true
+    },
+    "component_groups": {
+      "rpg:tier_0": {
+        "minecraft:health": {
+          "value": 36,
+          "max": 36
+        },
+        "minecraft:attack": {
+          "damage": 7.0
+        }
+      },
+      "rpg:tier_1": {
+        "minecraft:health": {
+          "value": 54,
+          "max": 54
+        },
+        "minecraft:attack": {
+          "damage": 9.5
+        }
+      },
+      "rpg:tier_2": {
+        "minecraft:health": {
+          "value": 79,
+          "max": 79
+        },
+        "minecraft:attack": {
+          "damage": 11.9
+        }
+      },
+      "rpg:tier_3": {
+        "minecraft:health": {
+          "value": 115,
+          "max": 115
+        },
+        "minecraft:attack": {
+          "damage": 14.3
+        }
+      },
+      "rpg:tier_4": {
+        "minecraft:health": {
+          "value": 162,
+          "max": 162
+        },
+        "minecraft:attack": {
+          "damage": 16.8
+        }
+      }
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": [
+          "monster",
+          "mob",
+          "rpg_monster",
+          "arthropod"
+        ]
+      },
+      "minecraft:collision_box": {
+        "width": 2.0,
+        "height": 1.2
+      },
+      "minecraft:scale": {
+        "value": 1.6
+      },
+      "minecraft:health": {
+        "value": 36,
+        "max": 36
+      },
+      "minecraft:attack": {
+        "damage": 7,
+        "effect_name": "poison",
+        "effect_duration": 4
+      },
+      "minecraft:movement": {
+        "value": 0.32
+      },
+      "minecraft:movement.basic": {},
+      "minecraft:jump.static": {},
+      "minecraft:can_climb": {},
+      "minecraft:physics": {},
+      "minecraft:pushable": {
+        "is_pushable": true,
+        "is_pushable_by_piston": true
+      },
+      "minecraft:breathable": {
+        "total_supply": 15,
+        "suffocate_time": 0
+      },
+      "minecraft:nameable": {},
+      "minecraft:follow_range": {
+        "value": 32
+      },
+      "minecraft:loot": {
+        "table": "loot_tables/entities/rpg_giant_spider.json"
+      },
+      "minecraft:experience_reward": {
+        "on_death": "query.last_hit_by_player ? 11 : 0"
+      },
+      "minecraft:behavior.float": {
+        "priority": 0
+      },
+      "minecraft:behavior.hurt_by_target": {
+        "priority": 1
+      },
+      "minecraft:behavior.nearest_attackable_target": {
+        "priority": 2,
+        "must_see": true,
+        "reselect_targets": true,
+        "within_radius": 20,
+        "entity_types": [
+          {
+            "filters": {
+              "any_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "player"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_spirit"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "villager"
+                }
+              ]
+            },
+            "max_dist": 20
+          }
+        ]
+      },
+      "minecraft:behavior.random_stroll": {
+        "priority": 6,
+        "speed_multiplier": 0.8
+      },
+      "minecraft:behavior.look_at_player": {
+        "priority": 7,
+        "look_distance": 10
+      },
+      "minecraft:behavior.random_look_around": {
+        "priority": 8
+      },
+      "minecraft:conditional_bandwidth_optimization": {},
+      "minecraft:behavior.melee_attack": {
+        "priority": 3,
+        "speed_multiplier": 1.25,
+        "track_target": true
+      },
+      "minecraft:despawn": {
+        "despawn_from_distance": {}
+      },
+      "minecraft:navigation.climb": {
+        "can_path_over_water": true
+      }
+    },
+    "events": {
+      "minecraft:entity_spawned": {
+        "add": {
+          "component_groups": [
+            "rpg:tier_0"
+          ]
+        }
+      },
+      "rpg:tier_0": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_1",
+            "rpg:tier_2",
+            "rpg:tier_3",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_0"
+          ]
+        }
+      },
+      "rpg:tier_1": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_2",
+            "rpg:tier_3",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_1"
+          ]
+        }
+      },
+      "rpg:tier_2": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_1",
+            "rpg:tier_3",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_2"
+          ]
+        }
+      },
+      "rpg:tier_3": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_1",
+            "rpg:tier_2",
+            "rpg:tier_4"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_3"
+          ]
+        }
+      },
+      "rpg:tier_4": {
+        "remove": {
+          "component_groups": [
+            "rpg:tier_0",
+            "rpg:tier_1",
+            "rpg:tier_2",
+            "rpg:tier_3"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:tier_4"
+          ]
+        }
+      }
+    }
+  }
+}

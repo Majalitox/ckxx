@@ -1,0 +1,22 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:ore_feature": {
+    "description": {
+      "identifier": "rpg:mana_crystal_feature"
+    },
+    "count": 3,
+    "replace_rules": [
+      {
+        "places_block": "rpg:mana_crystal_block",
+        "may_replace": [
+          "minecraft:stone",
+          "minecraft:deepslate",
+          "minecraft:andesite",
+          "minecraft:diorite",
+          "minecraft:granite",
+          "minecraft:tuff"
+        ]
+      }
+    ]
+  }
+}

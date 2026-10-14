@@ -1,0 +1,16 @@
+{
+  "format_version": [
+    1,
+    1,
+    0
+  ],
+  "rpg:mithril_ore": {
+    "sound": "stone"
+  },
+  "rpg:adamantite_ore": {
+    "sound": "stone"
+  },
+  "rpg:mana_crystal_block": {
+    "sound": "amethyst_block"
+  }
+}

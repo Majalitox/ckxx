@@ -1,0 +1,22 @@
+{
+  "format_version": "1.13.0",
+  "minecraft:ore_feature": {
+    "description": {
+      "identifier": "rpg:adamantite_ore_feature"
+    },
+    "count": 3,
+    "replace_rules": [
+      {
+        "places_block": "rpg:adamantite_ore",
+        "may_replace": [
+          "minecraft:stone",
+          "minecraft:deepslate",
+          "minecraft:andesite",
+          "minecraft:diorite",
+          "minecraft:granite",
+          "minecraft:tuff"
+        ]
+      }
+    ]
+  }
+}
