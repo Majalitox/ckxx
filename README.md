@@ -1,5 +1,7 @@
 # Aetheria RPG — Add-on RPG completo para Minecraft Bedrock
 
+![Aetheria RPG](docs/banner.jpg)
+
 Add-on (Behavior Pack + Resource Pack) que convierte Minecraft Bedrock en un RPG de fantasía: **naces como un niño o niña en una familia de NPCs**, creces hasta la edad adulta, tienes raza, magia y talento al azar, subes de rango de **F a SSS** en el Gremio de Aventureros, completas **misiones nuevas cada día**, hablas con los NPCs **escribiéndoles con texto libre** (y te responden y te envían cartas), y eliges si ser **héroe o villano**.
 
 **Novedades de la versión 2:** un mundo vivo con **reinos, capitales, ciudades, pueblos y aldeas de 10 culturas**, guardias que patrullan, asaltos nocturnos, NPCs con **rutina diaria** (trabajan, comercian, van a la taberna, a misa y a dormir), **economía con regateo**, **clases sociales y hazañas**, **robos con minijuego de sigilo**, sistema de **SE BUSCA** con estrellas, **cepo público con tomates, cárcel y fugas**, **animación de nacimiento**, tamaños reales por edad (niño ≈ 1 bloque, joven algo más, adulto 2 bloques) y **hechizos rehechos** con proyectiles, efectos y partículas propias de cada elemento.
