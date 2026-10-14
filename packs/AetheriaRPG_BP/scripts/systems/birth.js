@@ -14,7 +14,8 @@ import * as T from './town.js';
 import * as B from './build.js';
 import { makeIdentity, spawnNpc, NPC_TYPE } from './npc.js';
 import { resetCaches, applyScale, hooks as passiveHooks } from './passives.js';
-import { buttons, info } from '../util/ui.js';
+import { ActionFormData } from '@minecraft/server-ui';
+import { buttons, show, guarded } from '../util/ui.js';
 import { weighted, pick, randInt, clamp } from '../util/math.js';
 import { giveItem, makeItem, particle, psound, sleep, valid, getBlock, isSolid } from '../util/compat.js';
 import { title, msg } from '../core/progression.js';
@@ -173,16 +174,7 @@ async function birth(player, keepHouse) {
   }
 
   const el = ELEMENTS[element];
-  // Cinemática del nacimiento (12–15 s). Siempre restaura los controles al terminar.
-  await sleep(10);
-  if (player.isValid) {
-    await birthCinematic(player, {
-      dim, spawn: house?.spawn ?? { x: Math.floor(player.location.x), y: Math.floor(player.location.y), z: Math.floor(player.location.z) },
-      family: familyEntities, race, el, elId: element, mother, father, gender,
-    });
-  }
-  if (!player.isValid) return;
-
+  // Objetos iniciales ya en la bolsa (aunque el jugador salga durante la cinemática, los conserva).
   giveItem(player, makeItem('rpg:journal', 1));
   giveItem(player, makeItem('rpg:grimoire', 1));
   giveItem(player, 'minecraft:bread', 4);
@@ -207,9 +199,34 @@ async function birth(player, keepHouse) {
     `§7• Habla con tu familia y con la gente: ¡puedes escribirles y te responderán!\n` +
     `§7• Tu clase social, tu fama y tus hazañas cambian cómo te trata la gente de cada reino.\n` +
     `§7• Cuando seas adolescente, inscríbete en el §1Gremio de Aventureros§7.`;
+  // La historia queda pendiente hasta que el jugador la vea (si sale a mitad, se le muestra al volver).
+  d.storyPending = story;
+  dirty(player);
+
+  // Cinemática del nacimiento (12–15 s). Siempre restaura los controles al terminar.
+  await sleep(10);
+  if (player.isValid) {
+    await birthCinematic(player, {
+      dim, spawn: house?.spawn ?? { x: Math.floor(player.location.x), y: Math.floor(player.location.y), z: Math.floor(player.location.z) },
+      family: familyEntities, race, el, elId: element, mother, father, gender,
+    });
+  }
+  if (!player.isValid) return;
   await sleep(30);
-  await info(player, '§l§6Tu historia comienza', story);
-  msg(player, `§6✦ Bienvenido/a a Aetheria. §7Abre tu Diario (objeto) para empezar.`.replace('Bienvenido/a', g(d, 'Bienvenido', 'Bienvenida')));
+  await showStory(player);
+}
+
+/** Muestra la historia del nacimiento pendiente (tras la cinemática o al volver a entrar). */
+async function showStory(player) {
+  const d = getP(player);
+  if (!d?.storyPending || !valid(player)) return;
+  const story = String(d.storyPending);
+  const r = await show(new ActionFormData().title('§l§6Tu historia comienza').body(story).button('§l¡A vivir!'), player);
+  // Sin respuesta (jugador ocupado o desconectado): se volverá a intentar desde familyUpkeep.
+  if (!r || !valid(player)) return;
+  delete d.storyPending;
+  dirty(player);
+  msg(player, `§6✦ ${g(d, 'Bienvenido', 'Bienvenida')} a Aetheria. §7Abre tu Diario (objeto) para empezar.`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -528,6 +545,10 @@ export function rebirth(player) {
 /** Restaura NPCs familiares que falten (p. ej. tras un error). Se llama al acercarse a casa. */
 export function familyUpkeep(player) {
   const d = getP(player);
+  // Historia del nacimiento que el jugador no llegó a ver (salió durante la cinemática).
+  if (d?.storyPending && !pending.has(player.id) && !active.has(player.id)) {
+    guarded(player, () => showStory(player));
+  }
   const h = d?.family?.house;
   if (!h || player.dimension.id !== 'minecraft:overworld') return;
   const dx = player.location.x - h.x;
@@ -540,6 +561,11 @@ export function familyUpkeep(player) {
     try { found = dim.getEntities({ type: NPC_TYPE, tags: ['rpg_fid_' + m.id] }); } catch { continue; }
     if (found.length) {
       m.miss = 0;
+      // Familia retenida por una cinemática que ya no está en curso (p. ej. el mundo se cerró a mitad).
+      if (!active.has(player.id)) {
+        const stuck = found.filter((e) => { try { return e.hasTag('rpg_cinematic_npc'); } catch { return false; } });
+        if (stuck.length) releaseFamily(stuck.map((e) => ({ e })));
+      }
       continue;
     }
     m.miss = (m.miss ?? 0) + 1;

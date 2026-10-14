@@ -274,8 +274,9 @@ function settlementOf(sid, now) {
 
 function tickNpc(e, base) {
   if (!valid(e)) return;
-  if (isBusy(e)) {
-    // La justicia lo controla: olvidar la actividad para reasignarla cuando lo suelte.
+  if (!healNpc(e, isBusy(e))) {
+    // La justicia (u otro sistema) lo controla: no se toca. Solo se olvida nuestra propia marca de
+    // actividad para volver a lanzar su horario cuando lo suelten (ellos lo dejan en rpg:act_idle).
     if (getAct(e)) try { e.setDynamicProperty('rpg:act', ''); } catch {}
     return;
   }
@@ -333,9 +334,14 @@ function wrap(text, n = 42) {
  * Muestra un bocadillo (segunda línea del nombre) durante `secs` segundos y luego restaura el nombre.
  * Devuelve false si el NPC está ocupado por la justicia o no es válido.
  */
+// Propiedad dinámica con el nombre original mientras se muestra un bocadillo: si el mundo se cierra a mitad,
+// al volver se restaura (ver healNpc). La comparte economy.js para el nombre del carterista que huye.
+const NT_KEY = 'rpg:nt';
+const BUBBLE_MARK = '\n§f«';
+
 export function say(e, text, secs = 4) {
   if (!valid(e) || !text) return false;
-  if (isBusy(e) && !e.hasTag?.('rpg_fleeing')) return false;
+  try { if (isBusy(e) && !e.hasTag('rpg_fleeing')) return false; } catch { return false; }
   let cur;
   try { cur = e.nameTag ?? ''; } catch { return false; }
   const prev = bubbles.get(e.id);
@@ -343,10 +349,25 @@ export function say(e, text, secs = 4) {
   const first = String(base).split('\n')[0] || '§e?';
   const shown = `${first}\n§f«${wrap(social.fixEs(String(text)))}»`;
   try { e.nameTag = shown; } catch { return false; }
+  if (!prev || prev.base !== base) {
+    try {
+      // El carterista que huye ya guardó su nombre real (economy.stealPurse): no pisarlo con "¡Al ladrón!".
+      if (base && !String(base).includes(BUBBLE_MARK) && !e.hasTag('rpg_fleeing')) e.setDynamicProperty(NT_KEY, String(base));
+    } catch {}
+  }
   bubbles.set(e.id, { e, base, shown, until: system.currentTick + Math.round(secs * 20) });
   lastBubble.set(e.id, system.currentTick);
   if (lastBubble.size > 2000) lastBubble.clear();
   return true;
+}
+
+function endBubble(e, b) {
+  try {
+    if (!valid(e)) return;
+    if (e.nameTag === b.shown) e.nameTag = b.base;
+    // El carterista guarda ahí su nombre real mientras huye: no lo borres.
+    if (!e.hasTag('rpg_fleeing')) e.setDynamicProperty(NT_KEY, undefined);
+  } catch {}
 }
 
 /** Restaura ya el nombre del NPC si sigue mostrando nuestro bocadillo. */
@@ -354,19 +375,46 @@ export function clearBubble(e) {
   const b = bubbles.get(e?.id);
   if (!b) return;
   bubbles.delete(e.id);
-  try { if (valid(e) && e.nameTag === b.shown) e.nameTag = b.base; } catch {}
+  endBubble(e, b);
 }
 
 function bubbleTick(now) {
   for (const [id, b] of [...bubbles]) {
     if (now < b.until) {
       // Si la justicia se lo lleva, no estorbar.
-      if (valid(b.e) && isBusy(b.e) && !b.e.hasTag('rpg_fleeing')) clearBubble(b.e);
+      try { if (valid(b.e) && isBusy(b.e) && !b.e.hasTag('rpg_fleeing')) clearBubble(b.e); } catch {}
       continue;
     }
     bubbles.delete(id);
-    try { if (valid(b.e) && b.e.nameTag === b.shown) b.e.nameTag = b.base; } catch {}
+    endBubble(b.e, b);
   }
+}
+
+/**
+ * Repara estados que solo viven en memoria y que un cierre del mundo a mitad dejaría colgados:
+ * bocadillos que no se borraron y carteristas que huían cuando se recargaron los scripts.
+ * Devuelve true si el NPC ha quedado libre para seguir su horario.
+ */
+function healNpc(e, busy) {
+  if (busy) {
+    let fleeing = false;
+    try { fleeing = e.hasTag('rpg_fleeing'); } catch {}
+    if (!fleeing) return false;
+    try { if (economy.isFleeTracked(e.id)) return false; } catch { return false; }
+    try { economy.releaseStaleThief(e); } catch {}
+    return true;
+  }
+  if (bubbles.has(e.id)) return true;
+  let tag;
+  try { tag = e.nameTag; } catch { return true; }
+  if (typeof tag === 'string' && tag.includes(BUBBLE_MARK)) {
+    try {
+      const base = e.getDynamicProperty(NT_KEY);
+      e.nameTag = typeof base === 'string' && base ? base : tag.split('\n')[0];
+      e.setDynamicProperty(NT_KEY, undefined);
+    } catch {}
+  }
+  return true;
 }
 
 export function isBubbling(e) {
@@ -794,16 +842,20 @@ export function offersDayJob(ident) {
  */
 export function onProgress(player, type, key, n = 1, extra) {
   try {
-    if (type === 'boss') { social.deedForBoss(player, key); return; }
-    if (type === 'dungeon') { social.deedForDungeon(player, extra); return; }
+    if (type === 'boss') social.deedForBoss(player, key);
+    else if (type === 'dungeon') social.deedForDungeon(player, extra);
   } catch (e) { console.warn('[Aetheria] hazaña: ' + e); }
-  if (type !== 'harvest') return;
   const d = getP(player);
+  if (!d) return;
+  // quests.progress ya ha marcado las misiones completadas: el encargo real cuenta como hazaña al momento.
+  try { royalCheck(player, d); } catch (e) { console.warn('[Aetheria] encargo real: ' + e); }
+  if (type !== 'harvest') return;
   const j = jobOf(d);
   if (!j || j.type !== 'harvest' || j.paid) return;
   if (j.sid) {
-    const p = social.placeOf(player);
-    if (p.s && p.s.id !== j.sid) return;
+    // Solo cuenta lo cosechado en los campos de ese asentamiento (o justo a sus afueras).
+    const p = social.nearPlace(player, 24);
+    if (p.s?.id !== j.sid) return;
   }
   const before = j.have;
   j.have = Math.min(j.need, (j.have ?? 0) + n);
@@ -933,6 +985,7 @@ let n = 0;
 /** Cada segundo (contrato §6.4). */
 export function tick() {
   n++;
+  bindEconomy();
   hookWeather();
   let players;
   try { players = world.getAllPlayers().filter((p) => { try { return !!getP(p); } catch { return false; } }); } catch { return; }
@@ -988,7 +1041,20 @@ export function forgetPlayer(player) {
   nearByPlayer.delete(player.id);
 }
 
-economy.hooks.bubble = (e, text, secs) => say(e, text, secs);
+/*
+ * Enlace con economy.js. Se hace de forma perezosa: entre economy, social, chat y life hay importaciones
+ * circulares y, según el orden en que main.js importe los módulos, `economy.hooks` podría no estar
+ * inicializado todavía al evaluar este archivo (TDZ). Se reintenta en cada tick hasta lograrlo.
+ */
+let economyBound = false;
+function bindEconomy() {
+  if (economyBound) return;
+  try {
+    economy.hooks.bubble = (e, text, secs) => say(e, text, secs);
+    economyBound = true;
+  } catch {}
+}
+bindEconomy();
 
 /** Acceso para pruebas. */
 export const _t = { bubbles, convos, identCache, wpCache, reacted, playerBark, playerConvo, nearByPlayer, enterMemo, setWeatherFresh: (t) => { weatherFreshUntil = t; } };

@@ -13,8 +13,9 @@ import {
 } from './social.js';
 import {
   CULTURE_PRICES, FOCUS_PRICES, TAX_BY_GOV, MARKET_EVENTS, itemCategory, WALLET, MERCHANT_WALLET, HAGGLE, HAGGLE_PERS,
-  CATEGORY_NAMES,
+  CATEGORY_NAMES, JOBS,
 } from '../data/social.js';
+import { jobLabel } from '../data/names.js';
 import { genderize, moodOf } from './chat.js';
 import { show, info } from '../util/ui.js';
 import { fill } from '../util/text.js';
@@ -544,26 +545,91 @@ export function stealPurse(player, thief, ident) {
   psound(player, 'random.break', 1, 1.2);
   try { particle(player.dimension, 'rpg:coins', { x: player.location.x, y: player.location.y + 0.8, z: player.location.z }); } catch {}
   let base = '';
-  try { base = thief.nameTag; } catch {}
+  try { base = baseName(thief); } catch {}
+  const shown = `§c${name}\n§4¡Al ladrón!`;
   try { thief.addTag('rpg_busy'); thief.addTag('rpg_fleeing'); } catch {}
   try { thief.triggerEvent('rpg:act_flee'); thief.setDynamicProperty('rpg:act', ''); } catch {}
   try { thief.setDynamicProperty('rpg:steal_day', world.getDay()); } catch {}
+  // Si el mundo se cierra durante la huida, life.js restaura el nombre y el ladrón se queda el botín.
+  try { if (base) thief.setDynamicProperty(NT_KEY, base); thief.setDynamicProperty(LOOT_KEY, gold); } catch {}
   try { thief.setProperty('rpg:mood', 2); } catch {}
-  try { thief.nameTag = `§c${name}\n§4¡Al ladrón!`; } catch {}
-  thefts.set(thief.id, { e: thief, pid: player.id, gold, until: system.currentTick + 20 * 30, ident, name, base, shown: `§c${name}\n§4¡Al ladrón!` });
+  try { thief.nameTag = shown; } catch {}
+  fleeing.add(thief.id);
+  thefts.set(thief.id, { e: thief, pid: player.id, gold, until: system.currentTick + 20 * 30, ident, name, base, shown });
   return gold;
+}
+
+const NT_KEY = 'rpg:nt'; // nombre original (compartido con los bocadillos de life.js)
+const LOOT_KEY = 'rpg:loot'; // oro robado durante la huida
+const fleeing = new Set(); // ids de carteristas huyendo en esta sesión (robo en curso o recién atrapados)
+
+/** Nombre "de verdad" del NPC (sin bocadillo ni cartel de "¡Al ladrón!"). */
+function baseName(e) {
+  let cur = '';
+  try { cur = e.nameTag ?? ''; } catch {}
+  if (cur.includes('\n§f«') || cur.includes('¡Al ladrón!')) {
+    try {
+      const saved = e.getDynamicProperty(NT_KEY);
+      if (typeof saved === 'string' && saved) return saved;
+    } catch {}
+  }
+  return cur;
+}
+
+/** Nombre con la máscara quitada: "Forastero" → "Ladrón" en rojo (desenmascarado hoy). */
+export function exposedName(base, ident) {
+  if (!base || !ident) return base;
+  const f = ident.gender === 'f' ? 1 : 0;
+  const disguise = JOBS.ladron?.disguise?.[f] ?? 'Forastero';
+  const lines = String(base).split('\n');
+  lines[0] = '§c' + lines[0].replace(/^(§.)+/, '');
+  if (lines[1]) lines[1] = lines[1].replace(disguise, '§c' + jobLabel('ladron', ident.gender) + '§7');
+  return lines.join('\n');
+}
+
+/** ¿Este NPC huye por un robo gestionado en esta sesión? (life.js no lo toca mientras tanto). */
+export function isFleeTracked(id) {
+  return fleeing.has(id);
+}
+
+function freeThief(e, base) {
+  try { e.removeTag('rpg_busy'); e.removeTag('rpg_fleeing'); } catch {}
+  try { e.triggerEvent('rpg:act_idle'); e.setDynamicProperty('rpg:act', ''); } catch {}
+  try { e.setProperty('rpg:mood', 0); } catch {}
+  try {
+    const cur = e.nameTag;
+    if (base && (cur.includes('¡Al ladrón!') || cur.includes('\n§f«'))) e.nameTag = base;
+  } catch {}
+  try { e.setDynamicProperty(NT_KEY, undefined); e.setDynamicProperty(LOOT_KEY, undefined); } catch {}
 }
 
 function releaseThief(t, delay = 0) {
   const go = () => {
-    const e = t.e;
-    if (!valid(e)) return;
-    try { e.removeTag('rpg_busy'); e.removeTag('rpg_fleeing'); } catch {}
-    try { e.triggerEvent('rpg:act_idle'); e.setDynamicProperty('rpg:act', ''); } catch {}
-    try { e.setProperty('rpg:mood', 0); } catch {}
-    try { if (e.nameTag === t.shown && t.base) e.nameTag = t.base; } catch {}
+    fleeing.delete(t.e?.id);
+    if (!valid(t.e)) return;
+    freeThief(t.e, t.base);
   };
   if (delay > 0) system.runTimeout(go, delay); else go();
+}
+
+/**
+ * Carterista que huía cuando se recargaron los scripts (etiqueta rpg_fleeing sin robo en memoria):
+ * se ha escapado con el botín. Lo llama life.js al recorrer los NPCs.
+ */
+export function releaseStaleThief(e) {
+  if (!valid(e) || fleeing.has(e.id)) return false;
+  const ident = readIdent(e);
+  let loot = 0;
+  try { loot = Number(e.getDynamicProperty(LOOT_KEY)) || 0; } catch {}
+  if (ident && loot > 0) { ident.wallet = (ident.wallet ?? 0) + loot; writeIdent(e, ident); }
+  let base;
+  try { base = e.getDynamicProperty(NT_KEY); } catch {}
+  if (typeof base !== 'string' || !base) {
+    try { base = String(e.nameTag ?? '').split('\n')[0].replace('¡Al ladrón!', '').trim() || undefined; } catch {}
+  }
+  if (base && ident?.exposed === world.getDay()) base = exposedName(base, ident);
+  freeThief(e, base);
+  return true;
 }
 
 function theftUpkeep(now) {
@@ -571,6 +637,7 @@ function theftUpkeep(now) {
     const p = world.getAllPlayers().find((x) => x.id === t.pid);
     if (!valid(t.e)) {
       thefts.delete(id);
+      fleeing.delete(id);
       if (p) msg(p, '§7El ladrón ha desaparecido... y tu oro con él.');
       continue;
     }
@@ -603,8 +670,14 @@ function caught(t, catcher) {
     addKarma(catcher, 3, 'atrapar a un carterista');
     try { recordDeed(catcher, 'thief', { key: t.e.id }); } catch {}
   }
-  // El ladrón queda desenmascarado hoy y sigue huyendo un rato.
-  if (t.ident) { t.ident.exposed = world.getDay(); writeIdent(t.e, t.ident); }
+  // El ladrón queda desenmascarado hoy (su cartel dirá "Ladrón") y sigue huyendo un rato.
+  const ident = readIdent(t.e) ?? t.ident;
+  if (ident) {
+    ident.exposed = world.getDay();
+    writeIdent(t.e, ident);
+    t.base = exposedName(t.base, ident);
+  }
+  try { t.e.setDynamicProperty(LOOT_KEY, undefined); if (t.base) t.e.setDynamicProperty(NT_KEY, t.base); } catch {}
   try { t.e.triggerEvent('rpg:act_flee'); } catch {}
   releaseThief(t, 20 * 6);
 }
@@ -635,6 +708,6 @@ export function forgetPlayer(player) {
 }
 
 /** Acceso para pruebas. */
-export const _t = { stalks, thefts, playerCd, eventCache };
+export const _t = { stalks, thefts, playerCd, eventCache, fleeing };
 
 export { CATEGORY_NAMES };
