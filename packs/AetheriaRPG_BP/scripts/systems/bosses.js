@@ -8,7 +8,18 @@ import { particle, sound, damage, effect, knockback, valid, hpOf, heal, getBlock
 import { dist, rand, randInt, pick } from '../util/math.js';
 
 /** Ganchos que asigna main.js (p. ej. registrar la hazaña). */
-export const hooks = { onDefeated: undefined }; // (player, bossTypeId)
+export const hooks = {
+  onDefeated: undefined, // (player, bossTypeId)
+  enemyCast: undefined, // (caster, elementId, kind, target, power, opts) => boolean — motor de hechizos (magic.enemyCast)
+};
+
+/** Lanza un hechizo enemigo con el motor de magia; si no está disponible, usa el efecto clásico. */
+function cast(boss, el, kind, target, power, opts, fallback) {
+  let ok = false;
+  try { ok = !!hooks.enemyCast?.(boss, el, kind, target, power, opts ?? {}); } catch {}
+  if (!ok) try { fallback?.(); } catch {}
+  return ok;
+}
 
 const damagers = new Map(); // bossId -> Map(playerId -> dmg)
 const nextAbility = new Map();
@@ -115,6 +126,11 @@ const AI = {
       sound(boss.dimension, 'mob.evocation_illager.prepare_summon', boss.location, 1, 1.2);
       return 7;
     }
+    if (ps.length && Math.random() < 0.4) {
+      const t = pick(ps);
+      cast(boss, 'tierra', 'bolt', t, 7, { tier: 1, name: 'Pedrusco' }, () => bolt(boss, t, 6, [0.5, 0.4, 0.3]));
+      return 4;
+    }
     slam(boss, 5, 6, [0.3, 0.8, 0.2]);
     return 5;
   },
@@ -132,12 +148,17 @@ const AI = {
       spawnAround(boss, 'rpg:giant_spider', phase2 ? 2 : 1);
       return 8;
     }
-    for (const p of ps) bolt(boss, p, 6, [0.4, 0.9, 0.2], (t) => effect(t, 'poison', 120, 1));
+    for (const p of ps) cast(boss, 'naturaleza', phase2 ? 'barrage' : 'curse', p, 6, { tier: 2, name: 'Veneno de la Reina' }, () => bolt(boss, p, 6, [0.4, 0.9, 0.2], (t) => effect(t, 'poison', 120, 1)));
     return 4;
   },
   'rpg:ancient_golem'(boss, ps, phase2) {
     if (Math.random() < 0.5) { slam(boss, 7, 12, [0.6, 0.6, 0.6]); return 6; }
-    for (const p of ps.slice(0, 2)) bolt(boss, p, 12, [0.5, 0.4, 0.3], (t) => effect(t, 'slowness', 60, 2));
+    if (phase2 && ps.length && Math.random() < 0.5) {
+      const t = pick(ps);
+      cast(boss, 'tierra', 'rain', t, 11, { tier: 3, radius: 4, strikes: 6, name: 'Lluvia de Rocas' }, () => meteors(boss, ps, 5, 11));
+    } else {
+      for (const p of ps.slice(0, 2)) cast(boss, 'tierra', 'bolt', p, 12, { tier: 2, name: 'Roca Rúnica' }, () => bolt(boss, p, 12, [0.5, 0.4, 0.3], (t) => effect(t, 'slowness', 60, 2)));
+    }
     if (phase2) effect(boss, 'resistance', 100, 1);
     return 5;
   },
@@ -154,14 +175,28 @@ const AI = {
       particle(boss.dimension, 'minecraft:portal_reverse_particle', boss.location);
       return 3;
     }
-    for (const p of ps) bolt(boss, p, 10, [0.3, 1, 0.5], (t) => effect(t, 'wither', 100, 1));
+    if (phase2 && ps.length && Math.random() < 0.4) {
+      const t = pick(ps);
+      cast(boss, 'necromancia', 'zone', t, 6, { tier: 3, radius: 4, duration: 100, name: 'Cementerio Viviente' }, () => bolt(boss, t, 10, [0.3, 1, 0.5], (x) => effect(x, 'wither', 100, 1)));
+    } else {
+      for (const p of ps) cast(boss, 'necromancia', 'barrage', p, 9, { tier: 3, name: 'Saetas del Liche' }, () => bolt(boss, p, 10, [0.3, 1, 0.5], (t) => effect(t, 'wither', 100, 1)));
+    }
     heal(boss, 15);
     return 4;
   },
   'rpg:demon_lord'(boss, ps, phase2) {
     const r = Math.random();
-    if (r < 0.35) { meteors(boss, ps, phase2 ? 8 : 5, 14); return 7; }
-    if (r < 0.6) { spawnAround(boss, 'rpg:fire_imp', phase2 ? 4 : 2); return 8; }
+    if (r < 0.35) {
+      const t = pick(ps);
+      cast(boss, 'fuego', 'rain', t, 14, { tier: 4, radius: 5, strikes: phase2 ? 8 : 5, name: 'Lluvia Infernal' }, () => meteors(boss, ps, phase2 ? 8 : 5, 14));
+      return 7;
+    }
+    if (r < 0.5 && ps.length) {
+      const t = pick(ps);
+      cast(boss, 'fuego', 'lance', t, 16, { tier: 4, name: 'Lanza del Abismo' }, () => bolt(boss, t, 14, [1, 0.3, 0], (x) => { try { x.setOnFire(4, true); } catch {} }));
+      return 4;
+    }
+    if (r < 0.65) { spawnAround(boss, 'rpg:fire_imp', phase2 ? 4 : 2); return 8; }
     slam(boss, 6, 16, [1, 0.3, 0]);
     for (const p of playersNear(boss, 6)) try { p.setOnFire(6, true); } catch {}
     return 5;
@@ -186,7 +221,16 @@ const AI = {
       }
       return 5;
     }
-    if (r < 0.65) { meteors(boss, ps, phase2 ? 10 : 6, 18); return 7; }
+    if (r < 0.65) {
+      const t = pick(ps);
+      cast(boss, 'fuego', 'rain', t, 18, { tier: 4, radius: 6, strikes: phase2 ? 10 : 6, name: 'Lluvia de Ceniza' }, () => meteors(boss, ps, phase2 ? 10 : 6, 18));
+      return 7;
+    }
+    if (r < 0.8 && ps.length) {
+      const t = pick(ps);
+      cast(boss, 'fuego', 'lance', t, 18, { tier: 4, name: 'Aliento Perforante' }, () => bolt(boss, t, 18, [1, 0.4, 0.1]));
+      return 4;
+    }
     slam(boss, 9, 14, [0.6, 0.2, 0.1]);
     return 5;
   },
@@ -200,14 +244,62 @@ const AI = {
     }
     if (r < 0.45) { spawnAround(boss, 'rpg:demon_knight', phase2 ? 3 : 2); return 9; }
     if (r < 0.7) {
-      for (const p of ps) bolt(boss, p, 22, [0.3, 0, 0.5], (t) => { effect(t, 'wither', 100, 2); heal(boss, 20); });
+      for (const p of ps) cast(boss, 'oscuridad', 'barrage', p, 20, { tier: 4, name: 'Saetas del Vacío' }, () => bolt(boss, p, 22, [0.3, 0, 0.5], (t) => effect(t, 'wither', 100, 2)));
+      heal(boss, 20);
       return 4;
     }
-    meteors(boss, ps, 8, 20);
+    if (r < 0.85 && ps.length) {
+      const t = pick(ps);
+      cast(boss, 'oscuridad', 'zone', t, 8, { tier: 4, radius: 5, duration: 120, name: 'Grieta del Vacío' }, () => slam(boss, 8, 18, [0.2, 0, 0.3]));
+      return 6;
+    }
+    const t = pick(ps);
+    cast(boss, 'arcano', 'rain', t, 20, { tier: 4, radius: 6, strikes: 8, name: 'Estrellas Rotas' }, () => meteors(boss, ps, 8, 20));
     slam(boss, 8, 18, [0.2, 0, 0.3]);
     return 6;
   },
 };
+
+/* --------------------------- Monstruos lanzadores --------------------------- */
+
+// Monstruos normales que lanzan hechizos: elemento(s), tipos, probabilidad por intento, alcance y poder base.
+const CASTERS = {
+  'rpg:dark_mage': { els: ['oscuridad', 'necromancia', 'fuego'], kinds: ['bolt', 'bolt', 'barrage', 'curse'], chance: 0.35, range: 16, power: 6 },
+  'rpg:fire_imp': { els: ['fuego'], kinds: ['bolt'], chance: 0.3, range: 12, power: 5 },
+  'rpg:wraith': { els: ['oscuridad'], kinds: ['curse', 'bolt'], chance: 0.2, range: 12, power: 5 },
+  'rpg:ice_golem': { els: ['hielo'], kinds: ['bolt'], chance: 0.15, range: 14, power: 7 },
+};
+const casterNext = new Map();
+
+/** Cada 2 s: los magos oscuros y otros lanzadores atacan con hechizos a los jugadores cercanos. */
+export function casterTick() {
+  if (!hooks.enemyCast) return;
+  const now = system.currentTick;
+  for (const dimId of ['overworld', 'nether']) {
+    let dim;
+    try { dim = world.getDimension(dimId); } catch { continue; }
+    const players = world.getAllPlayers().filter((p) => { try { return p.dimension.id === dim.id && playable(p); } catch { return false; } });
+    if (!players.length) continue;
+    for (const [type, c] of Object.entries(CASTERS)) {
+      let list = [];
+      try { list = dim.getEntities({ type }); } catch { continue; }
+      for (const e of list) {
+        if (!valid(e) || now < (casterNext.get(e.id) ?? 0)) continue;
+        let best;
+        let bd = c.range;
+        for (const p of players) {
+          const dd = dist(p.location, e.location);
+          if (dd <= bd) { bd = dd; best = p; }
+        }
+        if (!best || Math.random() >= c.chance) continue;
+        const tier = Math.max(0, Math.min(4, Number(e.getDynamicProperty?.('rpg:tier') ?? 0)));
+        cast(e, pick(c.els), pick(c.kinds), best, c.power + tier * 2, { tier: Math.min(3, 1 + Math.floor(tier / 2)) });
+        casterNext.set(e.id, now + 60);
+      }
+    }
+  }
+  if (casterNext.size > 500) casterNext.clear();
+}
 
 /** IA de jefes (cada segundo). */
 export function bossTick() {

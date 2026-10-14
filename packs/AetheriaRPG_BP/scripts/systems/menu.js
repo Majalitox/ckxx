@@ -14,7 +14,7 @@ import { ROLE_NAMES } from '../data/names.js';
 import { questMenu } from './quests.js';
 import { relTier, replyLetter } from './npc.js';
 import { forgeMenu, alchemyMenu, nearForge, nearAlchemy } from './forge.js';
-import { castRacial, slotInfo } from './magic.js';
+import { castRacial, slotInfo, reactionGuide, discoveredReactions } from './magic.js';
 import { dungeonList, tryGenerate } from './dungeons.js';
 import { summonBoss } from './bosses.js';
 import { BOSSES } from '../data/mobs.js';
@@ -125,6 +125,7 @@ async function magicMenu(player) {
   ];
   if (d.element2) list.push({ text: `§l${ELEMENTS[d.element2].c}Árbol de ${ELEMENTS[d.element2].name}`, icon: 'textures/items/book_enchanted', fn: () => treeMenu(player, 's') });
   list.push({ text: '§lRanuras de hechizos', icon: 'textures/items/blaze_rod', fn: () => slotsMenu(player) });
+  list.push({ text: `§lReacciones elementales §7(${discoveredReactions(d).length} descubiertas)`, icon: 'textures/items/blaze_powder', fn: () => info(player, '§lReacciones elementales', reactionGuide(d)) });
   list.push({ text: `§6Usar habilidad racial: ${raceOf(d.race).racial.name}`, icon: 'textures/items/totem', fn: () => castRacial(player, d) });
   list.push({ text: '§lAfinidades de tu raza', icon: 'textures/items/nether_star', fn: () => info(player, '§lAfinidades', ELEMENT_IDS.map((e) => `${ELEMENTS[e].c}${ELEMENTS[e].name}§7: x${affinity(d, e).toFixed(2)}`).join('\n')) });
   list.push({ text: '§7Volver', fn: () => mainMenu(player) });

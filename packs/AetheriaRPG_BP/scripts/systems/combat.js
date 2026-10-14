@@ -12,7 +12,7 @@ import { effect, damage, heal, health, hpOf, valid, heldItem, giveItem, particle
 import { randInt, chance, dist2D, clamp } from '../util/math.js';
 import { bountyOf } from './guild.js';
 
-export const hooks = { questProgress: undefined, onNpcDeath: undefined, onBossDeath: undefined, bossDamage: undefined, onDungeonKill: undefined };
+export const hooks = { questProgress: undefined, onNpcDeath: undefined, onBossDeath: undefined, bossDamage: undefined, onDungeonKill: undefined, statusLine: undefined };
 
 const lastHit = new Map(); // entityId -> { pid, tick, fortune }
 const TIER_MULT = [1, 1.5, 2.2, 3.2, 4.5];
@@ -255,7 +255,9 @@ export function targetInfo(player) {
   const rank = Math.min(8, info.rank + (tier >= 3 ? 1 : 0));
   const h = hpOf(e);
   const lvl = 1 + info.rank * 8 + tier * 6;
-  return `§c${info.name} §7[${rk(rank)}§7] Nv.${lvl} §c♥${Math.ceil(h.cur)}/${Math.ceil(h.max)}`;
+  let st = '';
+  try { st = hooks.statusLine?.(e) ?? ''; } catch {}
+  return `§c${info.name} §7[${rk(rank)}§7] Nv.${lvl} §c♥${Math.ceil(h.cur)}/${Math.ceil(h.max)}${st ? ' ' + st : ''}`;
 }
 
 export { TIER_MULT, xpNeed, title, RANKS };

@@ -27,6 +27,9 @@ export const DEFAULTS = {
   jailMinutesSerious: 15,
   jailMinutesMurder: 30,
   decaySeconds: 120,
+  // Magia
+  spellShake: true,
+  spellTitles: true,
 };
 
 export const SETTING_LABELS = {
@@ -53,6 +56,8 @@ export const SETTING_LABELS = {
   jailMinutesSerious: 'Minutos de prisión por delito grave',
   jailMinutesMurder: 'Minutos de prisión por asesinato',
   decaySeconds: 'Segundos para perder una estrella de búsqueda',
+  spellShake: 'Sacudida de cámara con hechizos poderosos',
+  spellTitles: 'Títulos de hechizos legendarios y reacciones',
 };
 
 export function cfg(key) {

@@ -5,10 +5,11 @@ import { actionbarLock } from '../core/progression.js';
 import { maxMana, xpNeed, stageOf } from '../core/profile.js';
 import { rk } from '../data/ranks.js';
 import { ELEMENTS } from '../data/elements.js';
-import { slotInfo, cooldownLeft } from './magic.js';
+import { slotInfo, cooldownLeft, statusLine } from './magic.js';
 import { targetInfo } from './combat.js';
 import { hpOf, heldItem } from '../util/compat.js';
 import * as justice from './justice.js';
+import { theftHud } from './economy.js';
 
 export const CASTERS = new Set(['rpg:grimoire', 'rpg:staff_apprentice', 'rpg:staff_archmage']);
 
@@ -35,7 +36,10 @@ export function hudTick() {
       const t = targetInfo(player);
       if (t) line = t + '\n' + line;
     }
+    // Estados elementales que sufres (mojado, ardiendo, congelado…)
+    try { const st = statusLine(player, false); if (st) line += ' ' + st; } catch {}
     if (stageOf(d) !== 'adult') line += stageOf(d) === 'child' ? ' §d[Niño/a]'.replace('o/a', d.gender === 'f' ? 'a' : 'o') : ' §d[Adolescente]';
+    try { const th = theftHud(player); if (th) line = th + '\n' + line; } catch {}
     try { const js = justice.hudStatus(player); if (js) line = js + '\n' + line; } catch {}
     try { player.onScreenDisplay.setActionBar(line); } catch {}
   }

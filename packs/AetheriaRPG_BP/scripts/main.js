@@ -13,7 +13,7 @@ import * as guild from './systems/guild.js';
 import { shopMenu } from './systems/shop.js';
 import { forgeMenu } from './systems/forge.js';
 import * as magic from './systems/magic.js';
-import { spawnSummon, summonTick } from './systems/summons.js';
+import { spawnSummon, summonTick, dismissAll, spiritCount } from './systems/summons.js';
 import * as combat from './systems/combat.js';
 import * as hobbies from './systems/hobbies.js';
 import * as explore from './systems/explore.js';
@@ -28,6 +28,8 @@ import * as justice from './systems/justice.js';
 import * as crime from './systems/crime.js';
 import * as settlements from './systems/settlements.js';
 import * as social from './systems/social.js';
+import * as life from './systems/life.js';
+import * as economy from './systems/economy.js';
 import { guarded, info } from './util/ui.js';
 import { heal, effect, heldItem, setHeldItem } from './util/compat.js';
 import { getP as dataOf } from './core/store.js';
@@ -36,7 +38,11 @@ import { rkB } from './data/ranks.js';
 
 /* ------------------------------ Conexiones ------------------------------ */
 
-const progress = quests.progress;
+// Progreso de misiones: diarias/gremio + trabajos de un día y encargos reales (vida).
+const progress = (p, type, key, n, extra) => {
+  quests.progress(p, type, key, n, extra);
+  try { life.onProgress(p, type, key, n, extra); } catch (e) { console.warn('[Aetheria] life progress: ' + e); }
+};
 Object.assign(npc.hooks, {
   guildDesk: (p) => guild.guildDesk(p),
   guildMaster: (p) => guild.guildMaster(p),
@@ -55,6 +61,7 @@ Object.assign(combat.hooks, {
   onNpcDeath: npc.onNpcDeath,
   onBossDeath: bosses.onBossDeath,
   bossDamage: bosses.bossDamage,
+  statusLine: (e) => magic.statusLine(e, false),
 });
 hobbies.hooks.questProgress = progress;
 explore.hooks.questProgress = progress;
@@ -63,6 +70,10 @@ dungeons.hooks.questProgress = (p, type, key, n, extra) => {
   if (type === 'dungeon') try { social.deedForDungeon(p, extra); } catch (e) { console.warn('[Aetheria] deed: ' + e); }
 };
 bosses.hooks.onDefeated = (p, bossId) => social.deedForBoss(p, bossId);
+bosses.hooks.enemyCast = (...a) => magic.enemyCast(...a);
+life.hooks.questProgress = progress;
+economy.hooks.isRestricted = (p) => justice.isRestricted(p);
+settlements.hooks.onEnter = (p, s) => life.onEnterSettlement(p, s);
 progressHooks.onGuildRank = (p, rank) => social.deedForGuildRank(p, rank);
 
 // Justicia: castigos y fama alimentan las hazañas; la nobleza y los héroes reciben otro trato.
@@ -98,6 +109,10 @@ world.afterEvents.playerSpawn.subscribe((ev) => {
 
 world.beforeEvents.playerLeave.subscribe((ev) => {
   try { justice.onPlayerLeave(ev.player); } catch {}
+  try { life.forgetPlayer(ev.player); } catch {}
+  let pid;
+  try { pid = ev.player.id; } catch {}
+  if (pid) system.run(() => { try { dismissAll({ id: pid }); } catch {} });
   try { forgetPlayer(ev.player); } catch {}
 });
 
@@ -170,7 +185,9 @@ world.afterEvents.itemCompleteUse.subscribe((ev) => {
 
 world.afterEvents.entityHurt.subscribe((ev) => {
   try { combat.onHurt(ev); } catch (e) { console.warn('[Aetheria] onHurt: ' + e); }
+  try { magic.onEntityHurt(ev); } catch (e) { console.warn('[Aetheria] magic onHurt: ' + e); }
   try { justice.onEntityHurt(ev); } catch (e) { console.warn('[Aetheria] justice onHurt: ' + e); }
+  try { life.onEntityHurt(ev); } catch (e) { console.warn('[Aetheria] life onHurt: ' + e); }
 });
 
 world.afterEvents.entityDie.subscribe((ev) => {
@@ -240,12 +257,16 @@ function secondTick() {
     if (seconds % 2 === 0) passiveTick(player, d);
     if (seconds % 5 === 0) quests.dailyCheck(player);
     if (seconds % 10 === 0) familyUpkeep(player);
+    // Detenido, en el cepo o en la cárcel: los espíritus invocados se desvanecen.
+    if (seconds % 2 === 0 && (player.hasTag('rpg_arrested') || player.hasTag('rpg_jailed') || player.hasTag('rpg_humiliated')) && spiritCount(player) > 0) dismissAll(player);
   });
   try { bosses.bossTick(); } catch (e) { console.warn('[Aetheria] bossTick: ' + e); }
   try { justice.secondTick(); } catch (e) { console.warn('[Aetheria] justice: ' + e); }
+  try { life.tick(); } catch (e) { console.warn('[Aetheria] life: ' + e); }
   if (seconds % 2 === 0) {
     try { settlements.settlementTick(); } catch (e) { console.warn('[Aetheria] settlementTick: ' + e); }
     try { summonTick(); } catch {}
+    try { bosses.casterTick(); } catch (e) { console.warn('[Aetheria] casterTick: ' + e); }
     try { dungeons.dungeonTick(); } catch (e) { console.warn('[Aetheria] dungeonTick: ' + e); }
   }
   if (seconds % 3 === 0) try { npc.greetTick(); } catch {}
