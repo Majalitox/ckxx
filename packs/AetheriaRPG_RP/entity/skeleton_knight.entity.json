@@ -10,26 +10,31 @@
         "default": "textures/entity/rpg/mob/skeleton_knight"
       },
       "geometry": {
-        "default": "geometry.rpg.humanoid"
+        "default": "geometry.rpg.skeleton_knight"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.skeleton_knight.move",
+        "idle": "animation.rpg.skeleton_knight.idle",
+        "attack": "animation.rpg.skeleton_knight.attack",
+        "look": "animation.rpg.skeleton_knight.look"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#d8d8c8",
         "overlay_color": "#5a5a62"
-      },
-      "animations": {
-        "walk": "animation.rpg.humanoid.walk",
-        "look": "animation.rpg.look_at_target",
-        "attack": "animation.rpg.humanoid.attack"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look",
-          "attack"
-        ]
       }
     }
   }

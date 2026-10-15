@@ -10,24 +10,31 @@
         "default": "textures/entity/rpg/mob/giant_spider"
       },
       "geometry": {
-        "default": "geometry.rpg.arthropod"
+        "default": "geometry.rpg.giant_spider"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.giant_spider.move",
+        "idle": "animation.rpg.giant_spider.idle",
+        "attack": "animation.rpg.giant_spider.attack",
+        "look": "animation.rpg.giant_spider.look"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#3b2a1a",
         "overlay_color": "#6a1a1a"
-      },
-      "animations": {
-        "walk": "animation.rpg.arthropod.walk",
-        "look": "animation.rpg.look_at_target"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look"
-        ]
       }
     }
   }

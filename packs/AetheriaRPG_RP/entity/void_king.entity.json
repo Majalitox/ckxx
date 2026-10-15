@@ -10,26 +10,33 @@
         "default": "textures/entity/rpg/boss/void_king"
       },
       "geometry": {
-        "default": "geometry.rpg.humanoid_crown_horns"
+        "default": "geometry.rpg.void_king"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.void_king.move",
+        "idle": "animation.rpg.void_king.idle",
+        "attack": "animation.rpg.void_king.attack",
+        "look": "animation.rpg.void_king.look",
+        "void": "animation.rpg.void_king.void"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look",
+          "void"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#1a0a2a",
         "overlay_color": "#d040ff"
-      },
-      "animations": {
-        "walk": "animation.rpg.humanoid.walk",
-        "look": "animation.rpg.look_at_target",
-        "attack": "animation.rpg.humanoid.attack"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look",
-          "attack"
-        ]
       }
     }
   }

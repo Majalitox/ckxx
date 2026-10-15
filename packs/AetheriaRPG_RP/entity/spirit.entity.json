@@ -21,28 +21,45 @@
         "v11": "textures/entity/rpg/spirit/spirit_11"
       },
       "geometry": {
-        "wisp": "geometry.rpg.wisp",
-        "humanoid": "geometry.rpg.humanoid",
-        "quadruped": "geometry.rpg.quadruped"
+        "wisp": "geometry.rpg.spirit_wisp",
+        "humanoid": "geometry.rpg.spirit_humanoid",
+        "beast": "geometry.rpg.spirit_beast"
       },
+      "render_controllers": [
+        "controller.render.rpg.spirit"
+      ],
       "animations": {
-        "float": "animation.rpg.wisp.float",
-        "walk": "animation.rpg.humanoid.walk",
-        "qwalk": "animation.rpg.quadruped.walk"
+        "float": "animation.rpg.spirit.float",
+        "walk": "animation.rpg.spirit.walk",
+        "attack": "animation.rpg.spirit.attack",
+        "beast": "animation.rpg.spirit.beast"
       },
       "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
         "pre_animation": [
           "v.v = q.property('rpg:variant'); v.geo_idx = (v.v == 2 || v.v == 7 || v.v == 8) ? 1 : ((v.v == 4 || v.v == 5 || v.v == 9) ? 2 : 0);"
         ],
         "animate": [
-          "float",
-          "walk",
-          "qwalk"
+          {
+            "float": "v.geo_idx == 0"
+          },
+          {
+            "walk": "v.geo_idx == 1"
+          },
+          {
+            "attack": "v.geo_idx == 1"
+          },
+          {
+            "beast": "v.geo_idx == 2"
+          }
         ]
       },
-      "render_controllers": [
-        "controller.render.rpg.spirit"
-      ]
+      "spawn_egg": {
+        "base_color": "#6ae8ff",
+        "overlay_color": "#ffffff"
+      }
     }
   }
 }

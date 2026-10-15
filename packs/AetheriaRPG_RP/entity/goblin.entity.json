@@ -10,26 +10,33 @@
         "default": "textures/entity/rpg/mob/goblin"
       },
       "geometry": {
-        "default": "geometry.rpg.humanoid"
+        "default": "geometry.rpg.goblin"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.goblin.move",
+        "idle": "animation.rpg.goblin.idle",
+        "attack": "animation.rpg.goblin.attack",
+        "look": "animation.rpg.goblin.look",
+        "ears": "animation.rpg.goblin.ears"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look",
+          "ears"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#5d9a3a",
         "overlay_color": "#6b4a2a"
-      },
-      "animations": {
-        "walk": "animation.rpg.humanoid.walk",
-        "look": "animation.rpg.look_at_target",
-        "attack": "animation.rpg.humanoid.attack"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look",
-          "attack"
-        ]
       }
     }
   }

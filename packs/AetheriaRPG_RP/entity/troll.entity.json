@@ -10,26 +10,31 @@
         "default": "textures/entity/rpg/mob/troll"
       },
       "geometry": {
-        "default": "geometry.rpg.humanoid"
+        "default": "geometry.rpg.troll"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.troll.move",
+        "idle": "animation.rpg.troll.idle",
+        "attack": "animation.rpg.troll.attack",
+        "look": "animation.rpg.troll.look"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#6b7a5a",
         "overlay_color": "#5a3a1a"
-      },
-      "animations": {
-        "walk": "animation.rpg.humanoid.walk",
-        "look": "animation.rpg.look_at_target",
-        "attack": "animation.rpg.humanoid.attack"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look",
-          "attack"
-        ]
       }
     }
   }

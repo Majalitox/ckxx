@@ -10,26 +10,29 @@
         "default": "textures/entity/rpg/boss/lich"
       },
       "geometry": {
-        "default": "geometry.rpg.humanoid_crown"
+        "default": "geometry.rpg.lich"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "float": "animation.rpg.lich.float",
+        "arms": "animation.rpg.lich.arms",
+        "look": "animation.rpg.lich.look"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "float",
+          "arms",
+          "look"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#3a1a4a",
         "overlay_color": "#40ff80"
-      },
-      "animations": {
-        "walk": "animation.rpg.humanoid.walk",
-        "look": "animation.rpg.look_at_target",
-        "attack": "animation.rpg.humanoid.attack"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look",
-          "attack"
-        ]
       }
     }
   }

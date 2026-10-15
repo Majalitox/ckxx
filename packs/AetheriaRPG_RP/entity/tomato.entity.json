@@ -1,0 +1,28 @@
+{
+  "format_version": "1.10.0",
+  "minecraft:client_entity": {
+    "description": {
+      "identifier": "rpg:tomato",
+      "materials": {
+        "default": "entity_alphatest"
+      },
+      "textures": {
+        "default": "textures/entity/rpg/misc/tomato"
+      },
+      "geometry": {
+        "default": "geometry.rpg.tomato"
+      },
+      "render_controllers": [
+        "controller.render.rpg.default"
+      ],
+      "animations": {
+        "spin": "animation.rpg.tomato.spin"
+      },
+      "scripts": {
+        "animate": [
+          "spin"
+        ]
+      }
+    }
+  }
+}

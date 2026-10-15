@@ -2167,7 +2167,8 @@ def mob_skeleton_knight():
     m.box('root', 'sk_pelvis', (-3, 11, -1.5), (6, 2, 3))
     m.bone('body', 'root', (0, 12, 0))
     m.box('body', 'sk_spine', (-1, 12, -0.5), (2, 10, 2))
-    m.box('body', 'sk_ribs', (-3.5, 15, -2), (7, 6, 4))
+    # Costillar abierto por arriba y por abajo (solo caras laterales).
+    m.box('body', 'sk_ribs', (-3.5, 15, -2), (7, 6, 4), faces={'north': 'front', 'south': 'back', 'east': 'right', 'west': 'left'})
     m.box('body', 'sk_plate', (-4, 18.5, -2.5), (8, 4, 5))
     m.plane('body', 'sk_tabard', (-2.5, 6, -2.7), (5, 12, 0), face='north')
     m.bone('head', 'body', (0, 22.5, 0))
@@ -2206,8 +2207,6 @@ def mob_skeleton_knight():
                     c.clear(r, 0, j, r[2], 1)
             if name in ('front', 'back'):
                 c.vl(r, r[2] // 2, T.dark(bone_c, 0.85))
-        c.clear(F['up'])
-        c.clear(F['down'])
     m.painters['sk_ribs'] = ribsp
 
     def metalp(c, F, rust_seed=3):
@@ -2322,7 +2321,8 @@ def mob_wraith():
     m.bone('float', 'root', (0, 0, 0))
     m.bone('robe', 'float', (0, 14, 0))
     m.box('robe', 'w_robe', (-4.5, 3, -3), (9, 11, 6), faces={'north': 'front', 'south': 'back', 'east': 'side', 'west': 'side'})
-    m.box('robe', 'w_tail', (-3, 0.5, -2), (6, 3, 4), faces={'north': 'ns', 'south': 'ns', 'east': 'side', 'west': 'side', 'down': 'down'})
+    # Sin cara inferior: el bajo de la túnica queda hueco (se ven las caras interiores).
+    m.box('robe', 'w_tail', (-3, 0.5, -2), (6, 3, 4), faces={'north': 'ns', 'south': 'ns', 'east': 'side', 'west': 'side'})
     m.bone('body', 'float', (0, 14, 0))
     m.box('body', 'w_torso', (-4, 14, -2.5), (8, 10, 5))
     m.bone('cape', 'body', (0, 24, 2.6), rot=(6, 0, 0))
@@ -2333,7 +2333,8 @@ def mob_wraith():
     m.box('head', 'w_tip', (-2, 30, 3.5), (4, 3, 3), rot=(-30, 0, 0), pivot=(0, 31, 4))
     for side, sx in (('R', -1), ('L', 1)):
         b = m.bone(f'arm{side}', 'body', (5 * sx, 22, 0), rot=(-75, 0, 0))
-        m.box(b, 'w_sleeve', (-7 if sx < 0 else 3, 15, -2), (4, 7, 4), faces={'north': 'side', 'south': 'side', 'east': 'side', 'west': 'side', 'up': 'up', 'down': 'down'})
+        # Manga abierta (sin cara inferior): el brazo huesudo asoma por dentro.
+        m.box(b, 'w_sleeve', (-7 if sx < 0 else 3, 15, -2), (4, 7, 4), faces={'north': 'side', 'south': 'side', 'east': 'side', 'west': 'side', 'up': 'up'})
         m.box(b, 'w_arm', (-6 if sx < 0 else 4, 9.5, -1), (2, 6, 2), mirror=sx > 0)
         m.box(b, 'w_claw', (-6.5 if sx < 0 else 3.5, 7.5, -1.5), (3, 2, 3), mirror=sx > 0)
 
@@ -2346,7 +2347,7 @@ def mob_wraith():
             if hem and F.kinds.get(name) not in ('up', 'down'):
                 jag(c, r, seed + len(name), 3, prob=0.75)
     m.painters['w_robe'] = lambda c, F: ragp(c, F, 1)
-    m.painters['w_tail'] = lambda c, F: (ragp(c, F, 2), c.clear(F['down']))
+    m.painters['w_tail'] = lambda c, F: ragp(c, F, 2)
 
     def torsop(c, F):
         ragp(c, F, 3, hem=False)
@@ -2392,7 +2393,6 @@ def mob_wraith():
     def sleevep(c, F):
         ragp(c, F, 8, hem=False)
         jag(c, F['side'], 9, 3, prob=0.8)
-        c.clear(F['down'])
     m.painters['w_sleeve'] = sleevep
     m.painters['w_arm'] = lambda c, F: (T.mat_box(c, F, T.C('#b8b8cc'), 'bone', seed=10), [c.hl(r, 2, '#7a7a90') for r in F.sides()])
 
@@ -3653,7 +3653,7 @@ def mob_lich():
     m.box(b, 'li_crown_spike', (-0.5, 33.5, -4.1), (1, 3, 1))
     for side, sx in (('R', -1), ('L', 1)):
         a = m.bone(f'arm{side}', 'body', (5 * sx, 22, 0))
-        m.box(a, 'li_sleeve', (-7.5 if sx < 0 else 3.5, 15, -2), (4, 7, 4), faces={'north': 'side', 'south': 'side', 'east': 'side', 'west': 'side', 'up': 'up', 'down': 'down'})
+        m.box(a, 'li_sleeve', (-7.5 if sx < 0 else 3.5, 15, -2), (4, 7, 4), faces={'north': 'side', 'south': 'side', 'east': 'side', 'west': 'side', 'up': 'up'})
         m.box(a, 'li_arm', (-6.5 if sx < 0 else 4.5, 10, -1), (2, 6, 2), mirror=sx > 0)
         m.box(a, 'li_hand', (-7 if sx < 0 else 4, 8, -1.5), (3, 2, 3), mirror=sx > 0)
     m.bone('staff', 'armR', (-5.5, 9, 0), rot=(-5, 0, 0))
@@ -3746,7 +3746,6 @@ def mob_lich():
         robep(c, F, 9, hem=False)
         jag(c, F['side'], 10, 2, prob=0.8)
         c.hl(F['side'], 0, gold)
-        c.clear(F['down'])
     m.painters['li_sleeve'] = sleevep
     m.painters['li_arm'] = lambda c, F: (T.mat_box(c, F, bone_c, 'bone', seed=11), [c.hl(r, 3, T.dark(bone_c, 0.6)) for r in F.sides()])
     m.painters['li_hand'] = lambda c, F: (T.mat_box(c, F, bone_c, 'bone', seed=12), [[c.at(r, i, r[3] - 1, '#3a3040') for i in range(0, r[2], 2)] for r in F.sides()])
@@ -4717,7 +4716,7 @@ def particles(S):
         'minecraft:particle_lifetime_expression': {'max_lifetime': 1.1},
         'minecraft:particle_initial_spin': {'rotation': 'math.random(0, 360)', 'rotation_rate': 40},
         'minecraft:particle_appearance_billboard': _bb([f'1.35 + {AGE} * 0.35', f'1.35 + {AGE} * 0.35'], _uv('circle', S),
-                                                      facing='direction_y', direction={'mode': 'custom', 'custom_direction': [0, 0, -1]}),
+                                                      facing='emitter_transform_xz'),  # plano XZ: tumbado en el suelo
         'minecraft:particle_appearance_tinting': tint(f'math.clamp(math.min({AGE} * 8, 1) * (1 - math.pow({AGE}, 3)) * 0.9, 0, 1)'),
     })
     P_['rpg:birth'] = _p('rpg:birth', 'particles_blend', {
@@ -5084,7 +5083,8 @@ def build(rp):
     sp_tex = {}
     for v in range(12):
         g = SPIRIT_GEO[v]
-        mdl, pt = ((sw, spirit_wisp_painters(v)), (sh, spirit_humanoid_painters(v)), (sb, spirit_beast_painters(v)))[g]
+        mdl, pt = ((sw, spirit_wisp_painters), (sh, spirit_humanoid_painters), (sb, spirit_beast_painters))[g]
+        pt = pt(v)
         rel = f'textures/entity/rpg/spirit/spirit_{v}'
         mdl.texture(seed=v, painters=pt).save(_png(rp, rel))
         sp_tex[f'v{v}'] = rel

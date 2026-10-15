@@ -1,0 +1,80 @@
+{
+  "format_version": "1.10.0",
+  "particle_effect": {
+    "description": {
+      "identifier": "rpg:fx_oscuridad",
+      "basic_render_parameters": {
+        "material": "particles_blend",
+        "texture": "textures/particle/rpg_fx"
+      }
+    },
+    "components": {
+      "minecraft:emitter_lifetime_once": {
+        "active_time": 0.05
+      },
+      "minecraft:emitter_rate_instant": {
+        "num_particles": 22
+      },
+      "minecraft:emitter_shape_sphere": {
+        "radius": 1.6,
+        "surface_only": true,
+        "direction": "inwards"
+      },
+      "minecraft:particle_initial_speed": "1.8 + v.particle_random_2 * 1.2",
+      "minecraft:particle_lifetime_expression": {
+        "max_lifetime": "0.6 + v.particle_random_1 * 0.25"
+      },
+      "minecraft:particle_motion_dynamic": {
+        "linear_drag_coefficient": 1.2
+      },
+      "minecraft:particle_initial_spin": {
+        "rotation": "math.random(0, 360)",
+        "rotation_rate": "math.random(-120, 120)"
+      },
+      "minecraft:particle_appearance_billboard": {
+        "size": [
+          "(0.14 + v.particle_random_3 * 0.12) * (1 - v.particle_age / v.particle_lifetime) + 0.03",
+          "(0.14 + v.particle_random_3 * 0.12) * (1 - v.particle_age / v.particle_lifetime) + 0.03"
+        ],
+        "facing_camera_mode": "lookat_xyz",
+        "uv": {
+          "texture_width": 128,
+          "texture_height": 128,
+          "uv": [
+            64,
+            16
+          ],
+          "uv_size": [
+            16,
+            16
+          ]
+        }
+      },
+      "minecraft:particle_appearance_tinting": {
+        "color": {
+          "gradient": {
+            "0.00": [
+              0.478,
+              0.227,
+              0.69,
+              1.0
+            ],
+            "0.50": [
+              0.227,
+              0.063,
+              0.376,
+              1.0
+            ],
+            "1.00": [
+              0.039,
+              0.016,
+              0.063,
+              1.0
+            ]
+          },
+          "interpolant": "(v.particle_age / v.particle_lifetime)"
+        }
+      }
+    }
+  }
+}

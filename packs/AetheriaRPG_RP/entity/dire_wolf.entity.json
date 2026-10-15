@@ -10,24 +10,31 @@
         "default": "textures/entity/rpg/mob/dire_wolf"
       },
       "geometry": {
-        "default": "geometry.rpg.quadruped"
+        "default": "geometry.rpg.dire_wolf"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.dire_wolf.move",
+        "idle": "animation.rpg.dire_wolf.idle",
+        "attack": "animation.rpg.dire_wolf.attack",
+        "look": "animation.rpg.dire_wolf.look"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#3d3d42",
         "overlay_color": "#ff3030"
-      },
-      "animations": {
-        "walk": "animation.rpg.quadruped.walk",
-        "look": "animation.rpg.look_at_target"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look"
-        ]
       }
     }
   }

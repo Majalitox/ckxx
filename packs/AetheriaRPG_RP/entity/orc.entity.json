@@ -10,26 +10,31 @@
         "default": "textures/entity/rpg/mob/orc"
       },
       "geometry": {
-        "default": "geometry.rpg.humanoid"
+        "default": "geometry.rpg.orc"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.orc.move",
+        "idle": "animation.rpg.orc.idle",
+        "attack": "animation.rpg.orc.attack",
+        "look": "animation.rpg.orc.look"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#4a7a3a",
         "overlay_color": "#6a6a72"
-      },
-      "animations": {
-        "walk": "animation.rpg.humanoid.walk",
-        "look": "animation.rpg.look_at_target",
-        "attack": "animation.rpg.humanoid.attack"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look",
-          "attack"
-        ]
       }
     }
   }

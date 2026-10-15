@@ -10,26 +10,31 @@
         "default": "textures/entity/rpg/boss/ancient_golem"
       },
       "geometry": {
-        "default": "geometry.rpg.humanoid"
+        "default": "geometry.rpg.ancient_golem"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.ancient_golem.move",
+        "idle": "animation.rpg.ancient_golem.idle",
+        "attack": "animation.rpg.ancient_golem.attack",
+        "look": "animation.rpg.ancient_golem.look"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#8a8a8a",
         "overlay_color": "#ff9020"
-      },
-      "animations": {
-        "walk": "animation.rpg.humanoid.walk",
-        "look": "animation.rpg.look_at_target",
-        "attack": "animation.rpg.humanoid.attack"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look",
-          "attack"
-        ]
       }
     }
   }

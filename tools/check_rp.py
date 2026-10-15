@@ -535,9 +535,10 @@ def check(rp, rep, scripts_dir=None):
     if scripts_dir and os.path.isdir(scripts_dir):
         used = set()
         rx_calls = [
-            re.compile(r"spawnParticle\(\s*'(rpg:[a-z0-9_]+)'"),
-            re.compile(r"particle\([^,]+,\s*'(rpg:[a-z0-9_]+)'"),
-            re.compile(r"px\([^,]+,\s*'(rpg:[a-z0-9_]+)'"),
+            # (?!\s*\+) descarta prefijos concatenados como 'rpg:fx_' + elemento (se tratan aparte).
+            re.compile(r"spawnParticle\(\s*'(rpg:[a-z0-9_]+)'(?!\s*\+)"),
+            re.compile(r"particle\([^,]+,\s*'(rpg:[a-z0-9_]+)'(?!\s*\+)"),
+            re.compile(r"px\([^,]+,\s*'(rpg:[a-z0-9_]+)'(?!\s*\+)"),
         ]
         for path in glob.glob(os.path.join(scripts_dir, '**', '*.js'), recursive=True):
             txt = open(path, encoding='utf-8').read()

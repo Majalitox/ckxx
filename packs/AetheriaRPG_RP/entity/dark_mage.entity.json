@@ -10,26 +10,33 @@
         "default": "textures/entity/rpg/mob/dark_mage"
       },
       "geometry": {
-        "default": "geometry.rpg.humanoid"
+        "default": "geometry.rpg.dark_mage"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.dark_mage.move",
+        "idle": "animation.rpg.dark_mage.idle",
+        "attack": "animation.rpg.dark_mage.attack",
+        "look": "animation.rpg.dark_mage.look",
+        "cast": "animation.rpg.dark_mage.cast"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look",
+          "cast"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#3a1a5a",
         "overlay_color": "#c040ff"
-      },
-      "animations": {
-        "walk": "animation.rpg.humanoid.walk",
-        "look": "animation.rpg.look_at_target",
-        "attack": "animation.rpg.humanoid.attack"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look",
-          "attack"
-        ]
       }
     }
   }

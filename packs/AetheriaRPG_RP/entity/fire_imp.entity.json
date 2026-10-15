@@ -10,26 +10,33 @@
         "default": "textures/entity/rpg/mob/fire_imp"
       },
       "geometry": {
-        "default": "geometry.rpg.humanoid_horns"
+        "default": "geometry.rpg.fire_imp"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.fire_imp.move",
+        "idle": "animation.rpg.fire_imp.idle",
+        "attack": "animation.rpg.fire_imp.attack",
+        "look": "animation.rpg.fire_imp.look",
+        "wings": "animation.rpg.fire_imp.wings"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look",
+          "wings"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#b02a1a",
         "overlay_color": "#ffd020"
-      },
-      "animations": {
-        "walk": "animation.rpg.humanoid.walk",
-        "look": "animation.rpg.look_at_target",
-        "attack": "animation.rpg.humanoid.attack"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look",
-          "attack"
-        ]
       }
     }
   }

@@ -10,26 +10,29 @@
         "default": "textures/entity/rpg/mob/wraith"
       },
       "geometry": {
-        "default": "geometry.rpg.humanoid"
+        "default": "geometry.rpg.wraith"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "float": "animation.rpg.wraith.float",
+        "reach": "animation.rpg.wraith.reach",
+        "look": "animation.rpg.wraith.look"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "float",
+          "reach",
+          "look"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#1a1a24",
         "overlay_color": "#a040ff"
-      },
-      "animations": {
-        "walk": "animation.rpg.humanoid.walk",
-        "look": "animation.rpg.look_at_target",
-        "attack": "animation.rpg.humanoid.attack"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look",
-          "attack"
-        ]
       }
     }
   }

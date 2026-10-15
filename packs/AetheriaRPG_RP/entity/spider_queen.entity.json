@@ -10,24 +10,31 @@
         "default": "textures/entity/rpg/boss/spider_queen"
       },
       "geometry": {
-        "default": "geometry.rpg.arthropod"
+        "default": "geometry.rpg.spider_queen"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.spider_queen.move",
+        "idle": "animation.rpg.spider_queen.idle",
+        "attack": "animation.rpg.spider_queen.attack",
+        "look": "animation.rpg.spider_queen.look"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle",
+          "attack",
+          "look"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#1a121c",
         "overlay_color": "#a01030"
-      },
-      "animations": {
-        "walk": "animation.rpg.arthropod.walk",
-        "look": "animation.rpg.look_at_target"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look"
-        ]
       }
     }
   }

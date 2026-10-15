@@ -1,5 +1,5 @@
 {
-  "format_version": "1.10.0",
+  "format_version": "1.8.0",
   "render_controllers": {
     "controller.render.rpg.default": {
       "geometry": "Geometry.default",
@@ -55,7 +55,127 @@
             "Texture.s36",
             "Texture.s37",
             "Texture.s38",
-            "Texture.s39"
+            "Texture.s39",
+            "Texture.s40",
+            "Texture.s41",
+            "Texture.s42",
+            "Texture.s43",
+            "Texture.s44",
+            "Texture.s45",
+            "Texture.s46",
+            "Texture.s47",
+            "Texture.s48",
+            "Texture.s49",
+            "Texture.s50",
+            "Texture.s51",
+            "Texture.s52",
+            "Texture.s53",
+            "Texture.s54",
+            "Texture.s55",
+            "Texture.s56",
+            "Texture.s57",
+            "Texture.s58",
+            "Texture.s59",
+            "Texture.s60",
+            "Texture.s61",
+            "Texture.s62",
+            "Texture.s63",
+            "Texture.s64",
+            "Texture.s65",
+            "Texture.s66",
+            "Texture.s67",
+            "Texture.s68",
+            "Texture.s69",
+            "Texture.s70",
+            "Texture.s71",
+            "Texture.s72",
+            "Texture.s73",
+            "Texture.s74",
+            "Texture.s75",
+            "Texture.s76",
+            "Texture.s77",
+            "Texture.s78",
+            "Texture.s79",
+            "Texture.s80",
+            "Texture.s81",
+            "Texture.s82",
+            "Texture.s83",
+            "Texture.s84",
+            "Texture.s85",
+            "Texture.s86",
+            "Texture.s87",
+            "Texture.s88",
+            "Texture.s89",
+            "Texture.s90",
+            "Texture.s91",
+            "Texture.s92",
+            "Texture.s93",
+            "Texture.s94",
+            "Texture.s95",
+            "Texture.s96",
+            "Texture.s97",
+            "Texture.s98",
+            "Texture.s99",
+            "Texture.s100",
+            "Texture.s101",
+            "Texture.s102",
+            "Texture.s103",
+            "Texture.s104",
+            "Texture.s105",
+            "Texture.s106",
+            "Texture.s107",
+            "Texture.s108",
+            "Texture.s109",
+            "Texture.s110",
+            "Texture.s111",
+            "Texture.s112",
+            "Texture.s113",
+            "Texture.s114",
+            "Texture.s115",
+            "Texture.s116",
+            "Texture.s117",
+            "Texture.s118",
+            "Texture.s119",
+            "Texture.s120",
+            "Texture.s121",
+            "Texture.s122",
+            "Texture.s123",
+            "Texture.s124",
+            "Texture.s125",
+            "Texture.s126",
+            "Texture.s127",
+            "Texture.s128",
+            "Texture.s129",
+            "Texture.s130",
+            "Texture.s131",
+            "Texture.s132",
+            "Texture.s133",
+            "Texture.s134",
+            "Texture.s135",
+            "Texture.s136",
+            "Texture.s137",
+            "Texture.s138",
+            "Texture.s139",
+            "Texture.s140",
+            "Texture.s141",
+            "Texture.s142",
+            "Texture.s143",
+            "Texture.s144",
+            "Texture.s145",
+            "Texture.s146",
+            "Texture.s147",
+            "Texture.s148",
+            "Texture.s149",
+            "Texture.s150",
+            "Texture.s151",
+            "Texture.s152",
+            "Texture.s153",
+            "Texture.s154",
+            "Texture.s155",
+            "Texture.s156",
+            "Texture.s157",
+            "Texture.s158",
+            "Texture.s159"
           ]
         },
         "geometries": {
@@ -77,6 +197,74 @@
       ],
       "textures": [
         "Array.skins[q.property('rpg:skin')]"
+      ],
+      "part_visibility": [
+        {
+          "hat*": false
+        },
+        {
+          "tool*": false
+        },
+        {
+          "hat1*": "q.property('rpg:hat') == 1"
+        },
+        {
+          "hat2*": "q.property('rpg:hat') == 2"
+        },
+        {
+          "hat3*": "q.property('rpg:hat') == 3"
+        },
+        {
+          "hat4*": "q.property('rpg:hat') == 4"
+        },
+        {
+          "hat5*": "q.property('rpg:hat') == 5"
+        },
+        {
+          "hat6*": "q.property('rpg:hat') == 6"
+        },
+        {
+          "hat7*": "q.property('rpg:hat') == 7"
+        },
+        {
+          "tool1*": "q.property('rpg:tool') == 1"
+        },
+        {
+          "tool2*": "q.property('rpg:tool') == 2"
+        },
+        {
+          "tool3*": "q.property('rpg:tool') == 3"
+        },
+        {
+          "tool4*": "q.property('rpg:tool') == 4"
+        },
+        {
+          "tool5*": "q.property('rpg:tool') == 5"
+        },
+        {
+          "tool6*": "q.property('rpg:tool') == 6"
+        },
+        {
+          "tool7*": "q.property('rpg:tool') == 7"
+        },
+        {
+          "alert": "q.property('rpg:alert')"
+        },
+        {
+          "lids": "q.property('rpg:mood') == 3 || math.mod(q.life_time + (v.blink_seed ?? 0), 4.2) < 0.12"
+        },
+        {
+          "brows": "q.property('rpg:mood') == 2"
+        },
+        {
+          "mouth_a": "q.property('rpg:mood') == 2"
+        },
+        {
+          "mouth_h": "q.property('rpg:mood') == 1"
+        },
+        {
+          "beard": true
+        }
       ]
     },
     "controller.render.rpg.spirit": {
@@ -101,11 +289,11 @@
           "Array.geos": [
             "Geometry.wisp",
             "Geometry.humanoid",
-            "Geometry.quadruped"
+            "Geometry.beast"
           ]
         }
       },
-      "geometry": "Array.geos[v.geo_idx]",
+      "geometry": "Array.geos[v.geo_idx ?? 0]",
       "materials": [
         {
           "*": "Material.default"

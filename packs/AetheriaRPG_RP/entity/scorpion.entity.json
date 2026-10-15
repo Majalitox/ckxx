@@ -10,24 +10,27 @@
         "default": "textures/entity/rpg/mob/scorpion"
       },
       "geometry": {
-        "default": "geometry.rpg.arthropod"
+        "default": "geometry.rpg.scorpion"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.scorpion.move",
+        "idle": "animation.rpg.scorpion.idle"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "idle"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#c2a060",
         "overlay_color": "#8a6a30"
-      },
-      "animations": {
-        "walk": "animation.rpg.arthropod.walk",
-        "look": "animation.rpg.look_at_target"
-      },
-      "scripts": {
-        "animate": [
-          "walk",
-          "look"
-        ]
       }
     }
   }

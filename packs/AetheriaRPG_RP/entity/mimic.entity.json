@@ -15,17 +15,22 @@
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "chomp": "animation.rpg.mimic.chomp",
+        "hop": "animation.rpg.mimic.hop"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "chomp",
+          "hop"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#8a5a2a",
         "overlay_color": "#e8c040"
-      },
-      "animations": {
-        "chomp": "animation.rpg.mimic.chomp"
-      },
-      "scripts": {
-        "animate": [
-          "chomp"
-        ]
       }
     }
   }

@@ -10,24 +10,31 @@
         "default": "textures/entity/rpg/boss/ash_dragon"
       },
       "geometry": {
-        "default": "geometry.rpg.dragon"
+        "default": "geometry.rpg.ash_dragon"
       },
       "render_controllers": [
         "controller.render.rpg.default"
       ],
+      "animations": {
+        "move": "animation.rpg.ash_dragon.move",
+        "fly": "animation.rpg.ash_dragon.fly",
+        "jaw": "animation.rpg.ash_dragon.jaw",
+        "look": "animation.rpg.ash_dragon.look"
+      },
+      "scripts": {
+        "initialize": [
+          "v.phase = math.random(0, 360);"
+        ],
+        "animate": [
+          "move",
+          "fly",
+          "jaw",
+          "look"
+        ]
+      },
       "spawn_egg": {
         "base_color": "#3a3434",
         "overlay_color": "#c86020"
-      },
-      "animations": {
-        "fly": "animation.rpg.dragon.fly",
-        "look": "animation.rpg.look_at_target"
-      },
-      "scripts": {
-        "animate": [
-          "fly",
-          "look"
-        ]
       }
     }
   }
