@@ -5,14 +5,14 @@
     "description": "RPG completo: nacimiento y familia, razas, 600 hechizos, rangos F-SSS, Gremio, misiones diarias, NPCs con chat, mazmorras y jefes.",
     "uuid": "a3e1c7d2-5b4f-4e8a-9c1d-2f6b7e8a9d01",
     "version": [
-      1,
+      2,
       0,
       0
     ],
     "min_engine_version": [
       1,
-      21,
-      90
+      26,
+      10
     ]
   },
   "modules": [
@@ -20,7 +20,7 @@
       "type": "data",
       "uuid": "b4f2d8e3-6c5a-4f9b-8d2e-3a7c8f9b0e12",
       "version": [
-        1,
+        2,
         0,
         0
       ]
@@ -30,7 +30,7 @@
       "language": "javascript",
       "uuid": "c5a3e9f4-7d6b-4a0c-9e3f-4b8d9a0c1f23",
       "version": [
-        1,
+        2,
         0,
         0
       ],
@@ -41,14 +41,14 @@
     {
       "uuid": "d6b4fa05-8e7c-4b1d-af40-5c9eab1d2a34",
       "version": [
-        1,
+        2,
         0,
         0
       ]
     },
     {
       "module_name": "@minecraft/server",
-      "version": "2.0.0"
+      "version": "2.6.0"
     },
     {
       "module_name": "@minecraft/server-ui",

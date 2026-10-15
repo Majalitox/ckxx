@@ -83,7 +83,8 @@
       "minecraft:navigation.walk": {
         "can_path_over_water": true,
         "avoid_water": true,
-        "can_open_doors": false
+        "can_open_doors": false,
+        "avoid_damage_blocks": true
       },
       "minecraft:jump.static": {},
       "minecraft:can_climb": {},
@@ -98,7 +99,8 @@
       },
       "minecraft:nameable": {},
       "minecraft:follow_range": {
-        "value": 32
+        "value": 32,
+        "max": 40
       },
       "minecraft:loot": {
         "table": "loot_tables/entities/rpg_dark_mage.json"
@@ -110,7 +112,22 @@
         "priority": 0
       },
       "minecraft:behavior.hurt_by_target": {
-        "priority": 1
+        "priority": 1,
+        "alert_same_type": false,
+        "entity_types": [
+          {
+            "filters": {
+              "none_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "monster"
+                }
+              ]
+            },
+            "max_dist": 32
+          }
+        ]
       },
       "minecraft:behavior.nearest_attackable_target": {
         "priority": 2,
@@ -135,6 +152,11 @@
                   "test": "is_family",
                   "subject": "other",
                   "value": "villager"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_guard"
                 }
               ]
             },
@@ -162,6 +184,28 @@
         "attack_interval_min": 2,
         "attack_interval_max": 4,
         "attack_radius": 14
+      },
+      "minecraft:behavior.avoid_mob_type": {
+        "priority": 2,
+        "max_dist": 5,
+        "max_flee": 9,
+        "sprint_distance": 3,
+        "ignore_visibility": false,
+        "remove_target": false,
+        "walk_speed_multiplier": 1.1,
+        "sprint_speed_multiplier": 1.3,
+        "entity_types": [
+          {
+            "filters": {
+              "test": "is_family",
+              "subject": "other",
+              "value": "player"
+            },
+            "max_dist": 5,
+            "walk_speed_multiplier": 1.1,
+            "sprint_speed_multiplier": 1.3
+          }
+        ]
       },
       "minecraft:despawn": {
         "despawn_from_distance": {}

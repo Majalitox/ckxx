@@ -22,7 +22,10 @@
         }
       },
       "minecraft:loot": "loot_tables/blocks/adamantite_ore.json",
-      "minecraft:map_color": "#c03050"
+      "minecraft:map_color": "#c03050",
+      "tag:minecraft:is_pickaxe_item_destructible": {},
+      "tag:minecraft:diamond_tier_destructible": {},
+      "tag:stone": {}
     }
   }
 }

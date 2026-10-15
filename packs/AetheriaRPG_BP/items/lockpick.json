@@ -1,0 +1,26 @@
+{
+  "format_version": "1.21.40",
+  "minecraft:item": {
+    "description": {
+      "identifier": "rpg:lockpick",
+      "menu_category": {
+        "category": "items"
+      }
+    },
+    "components": {
+      "minecraft:icon": {
+        "textures": {
+          "default": "rpg_lockpick"
+        }
+      },
+      "minecraft:display_name": {
+        "value": "Ganzúa"
+      },
+      "minecraft:max_stack_size": 16,
+      "minecraft:cooldown": {
+        "category": "rpg_lockpick",
+        "duration": 0.5
+      }
+    }
+  }
+}

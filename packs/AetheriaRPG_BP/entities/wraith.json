@@ -86,7 +86,8 @@
       "minecraft:navigation.walk": {
         "can_path_over_water": true,
         "avoid_water": true,
-        "can_open_doors": false
+        "can_open_doors": false,
+        "avoid_damage_blocks": true
       },
       "minecraft:jump.static": {},
       "minecraft:can_climb": {},
@@ -101,7 +102,8 @@
       },
       "minecraft:nameable": {},
       "minecraft:follow_range": {
-        "value": 32
+        "value": 32,
+        "max": 40
       },
       "minecraft:loot": {
         "table": "loot_tables/entities/rpg_wraith.json"
@@ -113,7 +115,22 @@
         "priority": 0
       },
       "minecraft:behavior.hurt_by_target": {
-        "priority": 1
+        "priority": 1,
+        "alert_same_type": true,
+        "entity_types": [
+          {
+            "filters": {
+              "none_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "monster"
+                }
+              ]
+            },
+            "max_dist": 32
+          }
+        ]
       },
       "minecraft:behavior.nearest_attackable_target": {
         "priority": 2,
@@ -138,6 +155,11 @@
                   "test": "is_family",
                   "subject": "other",
                   "value": "villager"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_guard"
                 }
               ]
             },

@@ -22,7 +22,10 @@
         }
       },
       "minecraft:loot": "loot_tables/blocks/mithril_ore.json",
-      "minecraft:map_color": "#8ac8e8"
+      "minecraft:map_color": "#8ac8e8",
+      "tag:minecraft:is_pickaxe_item_destructible": {},
+      "tag:minecraft:iron_tier_destructible": {},
+      "tag:stone": {}
     }
   }
 }

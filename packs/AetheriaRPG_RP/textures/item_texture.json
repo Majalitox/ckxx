@@ -94,6 +94,21 @@
     },
     "rpg_wedding_ring": {
       "textures": "textures/items/rpg_wedding_ring"
+    },
+    "rpg_jail_key": {
+      "textures": "textures/items/rpg_jail_key"
+    },
+    "rpg_tomato": {
+      "textures": "textures/items/rpg_tomato"
+    },
+    "rpg_lockpick": {
+      "textures": "textures/items/rpg_lockpick"
+    },
+    "rpg_noble_title": {
+      "textures": "textures/items/rpg_noble_title"
+    },
+    "rpg_wanted_poster": {
+      "textures": "textures/items/rpg_wanted_poster"
     }
   }
 }

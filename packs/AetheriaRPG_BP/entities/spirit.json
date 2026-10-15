@@ -88,7 +88,8 @@
       "minecraft:movement.basic": {},
       "minecraft:navigation.walk": {
         "can_path_over_water": true,
-        "avoid_water": false
+        "avoid_water": false,
+        "avoid_damage_blocks": true
       },
       "minecraft:jump.static": {},
       "minecraft:physics": {},
@@ -99,6 +100,10 @@
       "minecraft:fire_immune": {},
       "minecraft:nameable": {
         "always_show": false
+      },
+      "minecraft:follow_range": {
+        "value": 24,
+        "max": 32
       },
       "minecraft:breathable": {
         "total_supply": 15,
@@ -118,6 +123,16 @@
             "deals_damage": "no"
           },
           {
+            "on_damage": {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_npc"
+              }
+            },
+            "deals_damage": "no"
+          },
+          {
             "cause": "fall",
             "deals_damage": "no"
           },
@@ -130,26 +145,146 @@
       "minecraft:behavior.float": {
         "priority": 0
       },
-      "minecraft:behavior.melee_attack": {
-        "priority": 2,
-        "speed_multiplier": 1.3,
-        "track_target": true
-      },
       "minecraft:behavior.nearest_attackable_target": {
         "priority": 1,
         "must_see": false,
         "reselect_targets": true,
         "within_radius": 18,
+        "scan_interval": 10,
         "entity_types": [
           {
             "filters": {
-              "test": "is_family",
-              "subject": "other",
-              "value": "monster"
+              "all_of": [
+                {
+                  "any_of": [
+                    {
+                      "test": "is_family",
+                      "subject": "other",
+                      "value": "monster"
+                    },
+                    {
+                      "test": "has_tag",
+                      "subject": "other",
+                      "value": "rpg_marked"
+                    }
+                  ]
+                },
+                {
+                  "none_of": [
+                    {
+                      "test": "is_family",
+                      "subject": "other",
+                      "value": "player"
+                    },
+                    {
+                      "test": "is_family",
+                      "subject": "other",
+                      "value": "npc"
+                    },
+                    {
+                      "test": "is_family",
+                      "subject": "other",
+                      "value": "rpg_npc"
+                    },
+                    {
+                      "test": "is_family",
+                      "subject": "other",
+                      "value": "rpg_waypoint"
+                    },
+                    {
+                      "test": "is_family",
+                      "subject": "other",
+                      "value": "rpg_wp"
+                    },
+                    {
+                      "test": "is_family",
+                      "subject": "other",
+                      "value": "rpg_spirit"
+                    },
+                    {
+                      "test": "is_family",
+                      "subject": "other",
+                      "value": "rpg_ally"
+                    },
+                    {
+                      "test": "has_tag",
+                      "subject": "other",
+                      "value": "rpg_ally"
+                    },
+                    {
+                      "test": "has_tag",
+                      "subject": "other",
+                      "value": "rpg_wp"
+                    }
+                  ]
+                }
+              ]
             },
             "max_dist": 18
           }
         ]
+      },
+      "minecraft:behavior.hurt_by_target": {
+        "priority": 2,
+        "entity_types": [
+          {
+            "filters": {
+              "none_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "player"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "npc"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_npc"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_waypoint"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_wp"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_spirit"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_ally"
+                },
+                {
+                  "test": "has_tag",
+                  "subject": "other",
+                  "value": "rpg_ally"
+                },
+                {
+                  "test": "has_tag",
+                  "subject": "other",
+                  "value": "rpg_wp"
+                }
+              ]
+            },
+            "max_dist": 18
+          }
+        ]
+      },
+      "minecraft:behavior.melee_attack": {
+        "priority": 2,
+        "speed_multiplier": 1.3,
+        "track_target": true
       },
       "minecraft:behavior.random_stroll": {
         "priority": 6,

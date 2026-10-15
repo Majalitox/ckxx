@@ -1,5 +1,5 @@
 {
-  "format_version": "1.21.0",
+  "format_version": "1.26.0",
   "minecraft:entity": {
     "description": {
       "identifier": "rpg:npc",
@@ -10,7 +10,7 @@
           "type": "int",
           "range": [
             0,
-            39
+            159
           ],
           "default": 0,
           "client_sync": true
@@ -20,6 +20,38 @@
           "range": [
             0,
             5
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "rpg:hat": {
+          "type": "int",
+          "range": [
+            0,
+            7
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "rpg:tool": {
+          "type": "int",
+          "range": [
+            0,
+            7
+          ],
+          "default": 0,
+          "client_sync": true
+        },
+        "rpg:alert": {
+          "type": "bool",
+          "default": false,
+          "client_sync": true
+        },
+        "rpg:mood": {
+          "type": "int",
+          "range": [
+            0,
+            3
           ],
           "default": 0,
           "client_sync": true
@@ -33,151 +65,1280 @@
             "min_distance": 48,
             "max_distance": 96
           }
-        },
-        "minecraft:behavior.random_stroll": {
-          "priority": 6,
-          "speed_multiplier": 0.6
         }
+      },
+      "rpg:citizen": {
+        "minecraft:persistent": {}
       },
       "rpg:resident": {
         "minecraft:persistent": {},
         "minecraft:home": {
-          "restriction_radius": 10
+          "restriction_radius": 10,
+          "restriction_type": "random_movement"
         },
         "minecraft:behavior.move_towards_home_restriction": {
-          "priority": 4,
+          "priority": 5,
           "speed_multiplier": 0.6
-        },
-        "minecraft:behavior.random_stroll": {
-          "priority": 6,
-          "speed_multiplier": 0.5,
-          "xz_dist": 4
         }
       },
       "rpg:staff": {
         "minecraft:persistent": {},
         "minecraft:home": {
-          "restriction_radius": 3
+          "restriction_radius": 3,
+          "restriction_type": "random_movement"
         },
         "minecraft:behavior.move_towards_home_restriction": {
+          "priority": 5,
+          "speed_multiplier": 0.6
+        }
+      },
+      "rpg:guard": {
+        "minecraft:type_family": {
+          "family": [
+            "npc",
+            "rpg_npc",
+            "rpg_guard",
+            "mob"
+          ]
+        },
+        "minecraft:health": {
+          "value": 60,
+          "max": 60
+        },
+        "minecraft:attack": {
+          "damage": 5
+        },
+        "minecraft:persistent": {},
+        "minecraft:knockback_resistance": {
+          "value": 0.3
+        },
+        "minecraft:behavior.melee_attack": {
           "priority": 3,
+          "speed_multiplier": 1.0,
+          "track_target": true,
+          "require_complete_path": false
+        },
+        "minecraft:behavior.hurt_by_target": {
+          "priority": 2,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "monster"
+              },
+              "max_dist": 24
+            }
+          ]
+        },
+        "minecraft:behavior.nearest_prioritized_attackable_target": {
+          "priority": 3,
+          "must_see": true,
+          "reselect_targets": true,
+          "within_radius": 16,
+          "scan_interval": 10,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "monster"
+              },
+              "max_dist": 16,
+              "priority": 0
+            }
+          ]
+        }
+      },
+      "rpg:act_idle": {
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.5,
+          "xz_dist": 8,
+          "y_dist": 3,
+          "interval": 120
+        }
+      },
+      "rpg:act_work_field": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_field"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 24,
+          "stop_distance": 3.0,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_field"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_field"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_work_forge": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_forge"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 24,
+          "stop_distance": 2.0,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_forge"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_forge"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_work_market": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_market"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 24,
+          "stop_distance": 2.5,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_market"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_market"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_tavern": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_tavern"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 24,
+          "stop_distance": 2.5,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_tavern"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_tavern"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_plaza": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_plaza"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 24,
+          "stop_distance": 3.5,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_plaza"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_plaza"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_home": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_home"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 24,
+          "stop_distance": 1.2,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_home"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_home"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_church": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_church"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 24,
+          "stop_distance": 2.5,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_church"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_church"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_sleep": {
+        "minecraft:movement": {
+          "value": 0
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 9,
+          "speed_multiplier": 0,
+          "xz_dist": 1,
+          "y_dist": 1,
+          "interval": 1000000
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 6,
+          "probability": 0.05
+        }
+      },
+      "rpg:act_patrol_0": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_patrol_0"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 32,
+          "stop_distance": 2.0,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_patrol_0"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_patrol_0"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_patrol_1": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_patrol_1"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 32,
+          "stop_distance": 2.0,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_patrol_1"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_patrol_1"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_patrol_2": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_patrol_2"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 32,
+          "stop_distance": 2.0,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_patrol_2"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_patrol_2"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_patrol_3": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_patrol_3"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 32,
+          "stop_distance": 2.0,
+          "speed_multiplier": 0.6,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_patrol_3"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_patrol_3"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.6,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.48,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_patrol_jail": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 4,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 20,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_jail_patrol"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 24,
+          "stop_distance": 1.5,
+          "speed_multiplier": 0.5,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_jail_patrol"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_jail_patrol"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.5,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.4,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_alarm": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 1,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 10,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "rpg_guard"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 24,
+          "stop_distance": 2.0,
+          "speed_multiplier": 1.4,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_guard"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_guard"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 1.4,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 1.12,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        }
+      },
+      "rpg:act_jeer": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 1,
+          "must_see": false,
+          "reselect_targets": true,
+          "within_radius": 32,
+          "scan_interval": 10,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "player"
+                  },
+                  {
+                    "test": "has_tag",
+                    "subject": "other",
+                    "value": "rpg_humiliated"
+                  }
+                ]
+              },
+              "max_dist": 32,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:shooter": {
+          "def": "rpg:tomato"
+        },
+        "minecraft:behavior.ranged_attack": {
+          "priority": 3,
+          "attack_interval_min": 1.0,
+          "attack_interval_max": 3.0,
+          "attack_radius": 10,
           "speed_multiplier": 0.6
         },
         "minecraft:behavior.random_stroll": {
-          "priority": 7,
+          "priority": 8,
           "speed_multiplier": 0.4,
-          "xz_dist": 2,
-          "interval": 400
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 100
+        }
+      },
+      "rpg:act_flee": {
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 20,
+          "max_flee": 28,
+          "sprint_distance": 14,
+          "ignore_visibility": true,
+          "remove_target": true,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "player"
+              },
+              "max_dist": 20,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            },
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "monster"
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 1.0,
+          "xz_dist": 12,
+          "y_dist": 3,
+          "interval": 20
+        }
+      },
+      "rpg:act_hunt": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 1,
+          "must_see": false,
+          "reselect_targets": true,
+          "within_radius": 64,
+          "scan_interval": 10,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "player"
+                  },
+                  {
+                    "test": "has_tag",
+                    "subject": "other",
+                    "value": "rpg_wanted"
+                  }
+                ]
+              },
+              "max_dist": 64,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.melee_attack": {
+          "priority": 3,
+          "speed_multiplier": 1.25,
+          "track_target": true,
+          "require_complete_path": false,
+          "cooldown_time": 1.0
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 1.25,
+          "within_radius": 64
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.6,
+          "xz_dist": 6,
+          "y_dist": 3,
+          "interval": 60
+        }
+      },
+      "rpg:act_escort_stocks": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 1,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 10,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_stocks"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 32,
+          "stop_distance": 1.5,
+          "speed_multiplier": 0.55,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_stocks"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_stocks"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.55,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.44,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        },
+        "minecraft:behavior.melee_attack": {
+          "priority": 3,
+          "speed_multiplier": 0.55,
+          "track_target": true,
+          "require_complete_path": false
+        }
+      },
+      "rpg:act_escort_jail": {
+        "minecraft:behavior.nearest_attackable_target": {
+          "priority": 1,
+          "must_see": false,
+          "must_reach": false,
+          "reselect_targets": true,
+          "within_radius": 96,
+          "scan_interval": 10,
+          "entity_types": [
+            {
+              "filters": {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_jail"
+              },
+              "max_dist": 96,
+              "must_see": false
+            }
+          ]
+        },
+        "minecraft:behavior.follow_mob": {
+          "priority": 2,
+          "search_range": 32,
+          "stop_distance": 1.5,
+          "speed_multiplier": 0.55,
+          "use_home_position_restriction": false,
+          "filters": {
+            "all_of": [
+              {
+                "test": "is_family",
+                "subject": "other",
+                "value": "rpg_wp_jail"
+              },
+              {
+                "test": "is_family",
+                "subject": "target",
+                "value": "rpg_wp_jail"
+              }
+            ]
+          }
+        },
+        "minecraft:behavior.move_towards_target": {
+          "priority": 4,
+          "speed_multiplier": 0.55,
+          "within_radius": 96
+        },
+        "minecraft:behavior.random_stroll": {
+          "priority": 8,
+          "speed_multiplier": 0.44,
+          "xz_dist": 3,
+          "y_dist": 2,
+          "interval": 80
+        },
+        "minecraft:behavior.melee_attack": {
+          "priority": 3,
+          "speed_multiplier": 0.55,
+          "track_target": true,
+          "require_complete_path": false
         }
       },
       "rpg:scale_30": {
         "minecraft:scale": {
           "value": 0.3
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_35": {
         "minecraft:scale": {
           "value": 0.35
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_40": {
         "minecraft:scale": {
           "value": 0.4
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_45": {
         "minecraft:scale": {
           "value": 0.45
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_50": {
         "minecraft:scale": {
           "value": 0.5
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_55": {
         "minecraft:scale": {
           "value": 0.55
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_60": {
         "minecraft:scale": {
           "value": 0.6
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_65": {
         "minecraft:scale": {
           "value": 0.65
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_70": {
         "minecraft:scale": {
           "value": 0.7
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_75": {
         "minecraft:scale": {
           "value": 0.75
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_80": {
         "minecraft:scale": {
           "value": 0.8
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_85": {
         "minecraft:scale": {
           "value": 0.85
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_90": {
         "minecraft:scale": {
           "value": 0.9
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_95": {
         "minecraft:scale": {
           "value": 0.95
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_100": {
         "minecraft:scale": {
           "value": 1.0
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_105": {
         "minecraft:scale": {
           "value": 1.05
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.8
         }
       },
       "rpg:scale_110": {
         "minecraft:scale": {
           "value": 1.1
+        },
+        "minecraft:collision_box": {
+          "width": 0.6,
+          "height": 1.7727
         }
       },
       "rpg:scale_115": {
         "minecraft:scale": {
           "value": 1.15
+        },
+        "minecraft:collision_box": {
+          "width": 0.5739,
+          "height": 1.6957
         }
       },
       "rpg:scale_120": {
         "minecraft:scale": {
           "value": 1.2
+        },
+        "minecraft:collision_box": {
+          "width": 0.55,
+          "height": 1.625
         }
       },
       "rpg:scale_125": {
         "minecraft:scale": {
           "value": 1.25
+        },
+        "minecraft:collision_box": {
+          "width": 0.528,
+          "height": 1.56
         }
       },
       "rpg:scale_130": {
         "minecraft:scale": {
           "value": 1.3
+        },
+        "minecraft:collision_box": {
+          "width": 0.5077,
+          "height": 1.5
         }
       },
       "rpg:scale_135": {
         "minecraft:scale": {
           "value": 1.35
+        },
+        "minecraft:collision_box": {
+          "width": 0.4889,
+          "height": 1.4444
         }
       }
     },
@@ -206,7 +1367,106 @@
         "avoid_water": true,
         "avoid_damage_blocks": true,
         "can_open_doors": true,
-        "can_pass_doors": true
+        "can_pass_doors": true,
+        "can_break_doors": false
+      },
+      "minecraft:annotation.open_door": {},
+      "minecraft:behavior.open_door": {
+        "priority": 6,
+        "close_door_after": true
+      },
+      "minecraft:preferred_path": {
+        "default_block_cost": 1.5,
+        "jump_cost": 5,
+        "max_fall_blocks": 2,
+        "preferred_path_blocks": [
+          {
+            "blocks": [
+              "grass_path",
+              "gravel",
+              "moss_block",
+              "mossy_cobblestone",
+              "cobblestone",
+              "cobbled_deepslate",
+              "coarse_dirt",
+              "podzol",
+              "packed_mud",
+              "blackstone",
+              "soul_soil",
+              "polished_blackstone",
+              "polished_diorite",
+              "smooth_stone",
+              "calcite",
+              "polished_deepslate",
+              "red_sand",
+              "cut_red_sandstone"
+            ],
+            "cost": 0
+          },
+          {
+            "blocks": [
+              "stone",
+              "stone_bricks",
+              "mossy_stone_bricks",
+              "cracked_stone_bricks",
+              "deepslate_bricks",
+              "deepslate_tiles",
+              "sandstone",
+              "cut_sandstone",
+              "smooth_sandstone",
+              "red_sandstone",
+              "smooth_red_sandstone",
+              "brick_block",
+              "oak_planks",
+              "spruce_planks",
+              "birch_planks",
+              "jungle_planks",
+              "acacia_planks",
+              "dark_oak_planks",
+              "mangrove_planks",
+              "cherry_planks",
+              "bamboo_planks",
+              "crimson_planks",
+              "warped_planks",
+              "polished_andesite",
+              "polished_granite",
+              "quartz_block",
+              "smooth_quartz",
+              "nether_brick",
+              "red_nether_brick",
+              "end_bricks",
+              "tuff_bricks",
+              "mud_bricks"
+            ],
+            "cost": 1
+          },
+          {
+            "blocks": [
+              "bed",
+              "lectern",
+              "composter",
+              "grindstone",
+              "blast_furnace",
+              "smoker",
+              "fletching_table",
+              "cartography_table",
+              "brewing_stand",
+              "smithing_table",
+              "cauldron",
+              "barrel",
+              "loom",
+              "stonecutter_block",
+              "anvil",
+              "campfire",
+              "soul_campfire"
+            ],
+            "cost": 50
+          }
+        ]
+      },
+      "minecraft:follow_range": {
+        "value": 96,
+        "max": 96
       },
       "minecraft:jump.static": {},
       "minecraft:can_climb": {},
@@ -259,36 +1519,258 @@
       "minecraft:behavior.float": {
         "priority": 0
       },
+      "minecraft:behavior.avoid_mob_type": {
+        "priority": 1,
+        "max_dist": 8,
+        "max_flee": 12,
+        "sprint_distance": 5,
+        "remove_target": false,
+        "walk_speed_multiplier": 1.2,
+        "sprint_speed_multiplier": 1.5,
+        "entity_types": [
+          {
+            "filters": {
+              "all_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "monster"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "self",
+                  "value": "rpg_guard",
+                  "operator": "!="
+                }
+              ]
+            },
+            "max_dist": 8,
+            "walk_speed_multiplier": 1.2,
+            "sprint_speed_multiplier": 1.5
+          }
+        ]
+      },
       "minecraft:behavior.look_at_player": {
-        "priority": 5,
+        "priority": 7,
         "look_distance": 8,
         "probability": 0.3
       },
       "minecraft:behavior.random_look_around": {
-        "priority": 8
+        "priority": 9
       },
-      "minecraft:behavior.open_door": {
-        "priority": 6,
-        "close_door_after": true
+      "minecraft:behavior.random_stroll": {
+        "priority": 9,
+        "speed_multiplier": 0.4,
+        "xz_dist": 4,
+        "y_dist": 2,
+        "interval": 200
       },
       "minecraft:conditional_bandwidth_optimization": {}
     },
     "events": {
       "minecraft:entity_spawned": {
+        "sequence": [
+          {
+            "add": {
+              "component_groups": [
+                "rpg:act_idle"
+              ]
+            }
+          },
+          {
+            "filters": {
+              "test": "has_component",
+              "subject": "self",
+              "operator": "!=",
+              "value": "minecraft:persistent"
+            },
+            "add": {
+              "component_groups": [
+                "rpg:wanderer"
+              ]
+            }
+          }
+        ]
+      },
+      "rpg:spawn_citizen": {
+        "remove": {
+          "component_groups": [
+            "rpg:wanderer",
+            "rpg:resident",
+            "rpg:staff",
+            "rpg:guard",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
         "add": {
           "component_groups": [
-            "rpg:wanderer"
+            "rpg:citizen",
+            "rpg:act_idle"
           ]
         }
       },
-      "rpg:spawn_resident": {
+      "rpg:spawn_guard": {
+        "remove": {
+          "component_groups": [
+            "rpg:wanderer",
+            "rpg:resident",
+            "rpg:staff",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
         "add": {
           "component_groups": [
-            "rpg:resident"
+            "rpg:citizen",
+            "rpg:guard",
+            "rpg:act_idle"
           ]
         }
       },
       "rpg:spawn_staff": {
+        "remove": {
+          "component_groups": [
+            "rpg:wanderer",
+            "rpg:citizen",
+            "rpg:resident",
+            "rpg:guard",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:staff",
+            "rpg:act_idle"
+          ]
+        }
+      },
+      "rpg:spawn_resident": {
+        "remove": {
+          "component_groups": [
+            "rpg:wanderer",
+            "rpg:citizen",
+            "rpg:staff",
+            "rpg:guard",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:resident",
+            "rpg:act_idle"
+          ]
+        }
+      },
+      "rpg:make_citizen": {
+        "remove": {
+          "component_groups": [
+            "rpg:wanderer",
+            "rpg:resident",
+            "rpg:staff",
+            "rpg:guard"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:citizen"
+          ]
+        }
+      },
+      "rpg:make_guard": {
+        "remove": {
+          "component_groups": [
+            "rpg:wanderer",
+            "rpg:resident",
+            "rpg:staff"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:citizen",
+            "rpg:guard"
+          ]
+        }
+      },
+      "rpg:make_staff": {
+        "remove": {
+          "component_groups": [
+            "rpg:wanderer",
+            "rpg:citizen",
+            "rpg:resident",
+            "rpg:guard"
+          ]
+        },
         "add": {
           "component_groups": [
             "rpg:staff"
@@ -299,29 +1781,618 @@
         "remove": {
           "component_groups": [
             "rpg:wanderer",
-            "rpg:staff"
+            "rpg:citizen",
+            "rpg:staff",
+            "rpg:guard"
           ]
         },
         "add": {
           "component_groups": [
             "rpg:resident"
-          ]
-        }
-      },
-      "rpg:make_staff": {
-        "remove": {
-          "component_groups": [
-            "rpg:wanderer",
-            "rpg:resident"
-          ]
-        },
-        "add": {
-          "component_groups": [
-            "rpg:staff"
           ]
         }
       },
       "rpg:interacted": {},
+      "rpg:act_idle": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_idle"
+          ]
+        }
+      },
+      "rpg:act_work_field": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_work_field"
+          ]
+        }
+      },
+      "rpg:act_work_forge": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_work_forge"
+          ]
+        }
+      },
+      "rpg:act_work_market": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_work_market"
+          ]
+        }
+      },
+      "rpg:act_tavern": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_tavern"
+          ]
+        }
+      },
+      "rpg:act_plaza": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_plaza"
+          ]
+        }
+      },
+      "rpg:act_home": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_home"
+          ]
+        }
+      },
+      "rpg:act_church": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_church"
+          ]
+        }
+      },
+      "rpg:act_sleep": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_sleep"
+          ]
+        }
+      },
+      "rpg:act_patrol_0": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_patrol_0"
+          ]
+        }
+      },
+      "rpg:act_patrol_1": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_patrol_1"
+          ]
+        }
+      },
+      "rpg:act_patrol_2": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_patrol_2"
+          ]
+        }
+      },
+      "rpg:act_patrol_3": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_patrol_3"
+          ]
+        }
+      },
+      "rpg:act_patrol_jail": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_patrol_jail"
+          ]
+        }
+      },
+      "rpg:act_alarm": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_alarm"
+          ]
+        }
+      },
+      "rpg:act_jeer": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_jeer"
+          ]
+        }
+      },
+      "rpg:act_flee": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_flee"
+          ]
+        }
+      },
+      "rpg:act_hunt": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_escort_stocks",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_hunt"
+          ]
+        }
+      },
+      "rpg:act_escort_stocks": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_jail"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_escort_stocks"
+          ]
+        }
+      },
+      "rpg:act_escort_jail": {
+        "remove": {
+          "component_groups": [
+            "rpg:act_idle",
+            "rpg:act_work_field",
+            "rpg:act_work_forge",
+            "rpg:act_work_market",
+            "rpg:act_tavern",
+            "rpg:act_plaza",
+            "rpg:act_home",
+            "rpg:act_church",
+            "rpg:act_sleep",
+            "rpg:act_patrol_0",
+            "rpg:act_patrol_1",
+            "rpg:act_patrol_2",
+            "rpg:act_patrol_3",
+            "rpg:act_patrol_jail",
+            "rpg:act_alarm",
+            "rpg:act_jeer",
+            "rpg:act_flee",
+            "rpg:act_hunt",
+            "rpg:act_escort_stocks"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:act_escort_jail"
+          ]
+        }
+      },
       "rpg:scale_30": {
         "remove": {
           "component_groups": [

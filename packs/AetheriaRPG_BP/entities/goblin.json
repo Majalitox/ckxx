@@ -4,7 +4,14 @@
     "description": {
       "identifier": "rpg:goblin",
       "is_spawnable": true,
-      "is_summonable": true
+      "is_summonable": true,
+      "properties": {
+        "rpg:fleeing": {
+          "type": "bool",
+          "default": false,
+          "client_sync": false
+        }
+      }
     },
     "component_groups": {
       "rpg:tier_0": {
@@ -14,6 +21,50 @@
         },
         "minecraft:attack": {
           "damage": 3.0
+        },
+        "minecraft:environment_sensor": {
+          "triggers": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "actor_health",
+                    "subject": "self",
+                    "operator": "<=",
+                    "value": 5
+                  },
+                  {
+                    "test": "bool_property",
+                    "subject": "self",
+                    "domain": "rpg:fleeing",
+                    "operator": "==",
+                    "value": false
+                  }
+                ]
+              },
+              "event": "rpg:flee_start"
+            },
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "actor_health",
+                    "subject": "self",
+                    "operator": ">=",
+                    "value": 10
+                  },
+                  {
+                    "test": "bool_property",
+                    "subject": "self",
+                    "domain": "rpg:fleeing",
+                    "operator": "==",
+                    "value": true
+                  }
+                ]
+              },
+              "event": "rpg:flee_end"
+            }
+          ]
         }
       },
       "rpg:tier_1": {
@@ -23,6 +74,50 @@
         },
         "minecraft:attack": {
           "damage": 4.1
+        },
+        "minecraft:environment_sensor": {
+          "triggers": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "actor_health",
+                    "subject": "self",
+                    "operator": "<=",
+                    "value": 7
+                  },
+                  {
+                    "test": "bool_property",
+                    "subject": "self",
+                    "domain": "rpg:fleeing",
+                    "operator": "==",
+                    "value": false
+                  }
+                ]
+              },
+              "event": "rpg:flee_start"
+            },
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "actor_health",
+                    "subject": "self",
+                    "operator": ">=",
+                    "value": 14
+                  },
+                  {
+                    "test": "bool_property",
+                    "subject": "self",
+                    "domain": "rpg:fleeing",
+                    "operator": "==",
+                    "value": true
+                  }
+                ]
+              },
+              "event": "rpg:flee_end"
+            }
+          ]
         }
       },
       "rpg:tier_2": {
@@ -32,6 +127,50 @@
         },
         "minecraft:attack": {
           "damage": 5.1
+        },
+        "minecraft:environment_sensor": {
+          "triggers": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "actor_health",
+                    "subject": "self",
+                    "operator": "<=",
+                    "value": 10
+                  },
+                  {
+                    "test": "bool_property",
+                    "subject": "self",
+                    "domain": "rpg:fleeing",
+                    "operator": "==",
+                    "value": false
+                  }
+                ]
+              },
+              "event": "rpg:flee_start"
+            },
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "actor_health",
+                    "subject": "self",
+                    "operator": ">=",
+                    "value": 21
+                  },
+                  {
+                    "test": "bool_property",
+                    "subject": "self",
+                    "domain": "rpg:fleeing",
+                    "operator": "==",
+                    "value": true
+                  }
+                ]
+              },
+              "event": "rpg:flee_end"
+            }
+          ]
         }
       },
       "rpg:tier_3": {
@@ -41,6 +180,50 @@
         },
         "minecraft:attack": {
           "damage": 6.1
+        },
+        "minecraft:environment_sensor": {
+          "triggers": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "actor_health",
+                    "subject": "self",
+                    "operator": "<=",
+                    "value": 15
+                  },
+                  {
+                    "test": "bool_property",
+                    "subject": "self",
+                    "domain": "rpg:fleeing",
+                    "operator": "==",
+                    "value": false
+                  }
+                ]
+              },
+              "event": "rpg:flee_start"
+            },
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "actor_health",
+                    "subject": "self",
+                    "operator": ">=",
+                    "value": 31
+                  },
+                  {
+                    "test": "bool_property",
+                    "subject": "self",
+                    "domain": "rpg:fleeing",
+                    "operator": "==",
+                    "value": true
+                  }
+                ]
+              },
+              "event": "rpg:flee_end"
+            }
+          ]
         }
       },
       "rpg:tier_4": {
@@ -50,6 +233,114 @@
         },
         "minecraft:attack": {
           "damage": 7.2
+        },
+        "minecraft:environment_sensor": {
+          "triggers": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "actor_health",
+                    "subject": "self",
+                    "operator": "<=",
+                    "value": 22
+                  },
+                  {
+                    "test": "bool_property",
+                    "subject": "self",
+                    "domain": "rpg:fleeing",
+                    "operator": "==",
+                    "value": false
+                  }
+                ]
+              },
+              "event": "rpg:flee_start"
+            },
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "actor_health",
+                    "subject": "self",
+                    "operator": ">=",
+                    "value": 43
+                  },
+                  {
+                    "test": "bool_property",
+                    "subject": "self",
+                    "domain": "rpg:fleeing",
+                    "operator": "==",
+                    "value": true
+                  }
+                ]
+              },
+              "event": "rpg:flee_end"
+            }
+          ]
+        }
+      },
+      "rpg:fleeing": {
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 16,
+          "max_flee": 20,
+          "sprint_distance": 10,
+          "remove_target": true,
+          "ignore_visibility": true,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "any_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "player"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "rpg_spirit"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "villager"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "rpg_guard"
+                  }
+                ]
+              },
+              "max_dist": 16,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
+        },
+        "minecraft:spell_effects": {
+          "add_effects": [
+            {
+              "effect": "regeneration",
+              "duration": 12,
+              "amplifier": 0,
+              "display_on_screen_animation": false
+            }
+          ]
+        },
+        "minecraft:timer": {
+          "looping": false,
+          "time": [
+            10,
+            16
+          ],
+          "time_down_event": {
+            "event": "rpg:flee_end",
+            "target": "self"
+          }
         }
       }
     },
@@ -63,8 +354,8 @@
         ]
       },
       "minecraft:collision_box": {
-        "width": 0.5,
-        "height": 1.3
+        "width": 0.7143,
+        "height": 1.8571
       },
       "minecraft:scale": {
         "value": 0.7
@@ -83,7 +374,8 @@
       "minecraft:navigation.walk": {
         "can_path_over_water": true,
         "avoid_water": true,
-        "can_open_doors": false
+        "can_open_doors": false,
+        "avoid_damage_blocks": true
       },
       "minecraft:jump.static": {},
       "minecraft:can_climb": {},
@@ -98,7 +390,8 @@
       },
       "minecraft:nameable": {},
       "minecraft:follow_range": {
-        "value": 32
+        "value": 32,
+        "max": 40
       },
       "minecraft:loot": {
         "table": "loot_tables/entities/rpg_goblin.json"
@@ -110,7 +403,22 @@
         "priority": 0
       },
       "minecraft:behavior.hurt_by_target": {
-        "priority": 1
+        "priority": 1,
+        "alert_same_type": true,
+        "entity_types": [
+          {
+            "filters": {
+              "none_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "monster"
+                }
+              ]
+            },
+            "max_dist": 32
+          }
+        ]
       },
       "minecraft:behavior.nearest_attackable_target": {
         "priority": 2,
@@ -135,6 +443,11 @@
                   "test": "is_family",
                   "subject": "other",
                   "value": "villager"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_guard"
                 }
               ]
             },
@@ -243,6 +556,26 @@
         "add": {
           "component_groups": [
             "rpg:tier_4"
+          ]
+        }
+      },
+      "rpg:flee_start": {
+        "set_property": {
+          "rpg:fleeing": true
+        },
+        "add": {
+          "component_groups": [
+            "rpg:fleeing"
+          ]
+        }
+      },
+      "rpg:flee_end": {
+        "set_property": {
+          "rpg:fleeing": false
+        },
+        "remove": {
+          "component_groups": [
+            "rpg:fleeing"
           ]
         }
       }

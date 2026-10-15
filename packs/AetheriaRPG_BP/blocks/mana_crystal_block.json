@@ -23,7 +23,9 @@
       },
       "minecraft:loot": "loot_tables/blocks/mana_crystal_block.json",
       "minecraft:map_color": "#a070ff",
-      "minecraft:light_emission": 9
+      "minecraft:light_emission": 9,
+      "tag:minecraft:is_pickaxe_item_destructible": {},
+      "tag:stone": {}
     }
   }
 }

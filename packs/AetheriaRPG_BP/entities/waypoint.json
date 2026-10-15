@@ -1,0 +1,581 @@
+{
+  "format_version": "1.26.0",
+  "minecraft:entity": {
+    "description": {
+      "identifier": "rpg:waypoint",
+      "is_spawnable": false,
+      "is_summonable": true
+    },
+    "component_groups": {
+      "rpg:wp_field": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_field"
+          ]
+        }
+      },
+      "rpg:wp_forge": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_forge"
+          ]
+        }
+      },
+      "rpg:wp_market": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_market"
+          ]
+        }
+      },
+      "rpg:wp_tavern": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_tavern"
+          ]
+        }
+      },
+      "rpg:wp_plaza": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_plaza"
+          ]
+        }
+      },
+      "rpg:wp_home": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_home"
+          ]
+        }
+      },
+      "rpg:wp_church": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_church"
+          ]
+        }
+      },
+      "rpg:wp_stocks": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_stocks"
+          ]
+        }
+      },
+      "rpg:wp_jail": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_jail"
+          ]
+        }
+      },
+      "rpg:wp_jail_patrol": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_jail_patrol"
+          ]
+        }
+      },
+      "rpg:wp_patrol_0": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_patrol_0"
+          ]
+        }
+      },
+      "rpg:wp_patrol_1": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_patrol_1"
+          ]
+        }
+      },
+      "rpg:wp_patrol_2": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_patrol_2"
+          ]
+        }
+      },
+      "rpg:wp_patrol_3": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_patrol_3"
+          ]
+        }
+      },
+      "rpg:wp_gate": {
+        "minecraft:type_family": {
+          "family": [
+            "rpg_waypoint",
+            "rpg_wp",
+            "rpg_wp_gate"
+          ]
+        }
+      }
+    },
+    "components": {
+      "minecraft:type_family": {
+        "family": [
+          "rpg_waypoint",
+          "rpg_wp"
+        ]
+      },
+      "minecraft:health": {
+        "value": 20,
+        "max": 20
+      },
+      "minecraft:collision_box": {
+        "width": 0.2,
+        "height": 0.2
+      },
+      "minecraft:custom_hit_test": {
+        "hitboxes": [
+          {
+            "width": 0.05,
+            "height": 0.05,
+            "pivot": [
+              0,
+              -3,
+              0
+            ]
+          }
+        ]
+      },
+      "minecraft:physics": {
+        "has_gravity": false,
+        "has_collision": true
+      },
+      "minecraft:pushable": {
+        "is_pushable": false,
+        "is_pushable_by_piston": false
+      },
+      "minecraft:knockback_resistance": {
+        "value": 1.0
+      },
+      "minecraft:damage_sensor": {
+        "triggers": [
+          {
+            "cause": "all",
+            "deals_damage": "no"
+          }
+        ]
+      },
+      "minecraft:fire_immune": {},
+      "minecraft:breathable": {
+        "total_supply": 15,
+        "suffocate_time": 0,
+        "breathes_air": true,
+        "breathes_water": true
+      },
+      "minecraft:persistent": {},
+      "minecraft:conditional_bandwidth_optimization": {}
+    },
+    "events": {
+      "rpg:wp_field": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_field"
+          ]
+        }
+      },
+      "rpg:wp_forge": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_forge"
+          ]
+        }
+      },
+      "rpg:wp_market": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_market"
+          ]
+        }
+      },
+      "rpg:wp_tavern": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_tavern"
+          ]
+        }
+      },
+      "rpg:wp_plaza": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_plaza"
+          ]
+        }
+      },
+      "rpg:wp_home": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_home"
+          ]
+        }
+      },
+      "rpg:wp_church": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_church"
+          ]
+        }
+      },
+      "rpg:wp_stocks": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_stocks"
+          ]
+        }
+      },
+      "rpg:wp_jail": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_jail"
+          ]
+        }
+      },
+      "rpg:wp_jail_patrol": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_jail_patrol"
+          ]
+        }
+      },
+      "rpg:wp_patrol_0": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_patrol_0"
+          ]
+        }
+      },
+      "rpg:wp_patrol_1": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_patrol_1"
+          ]
+        }
+      },
+      "rpg:wp_patrol_2": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_3",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_patrol_2"
+          ]
+        }
+      },
+      "rpg:wp_patrol_3": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_gate"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_patrol_3"
+          ]
+        }
+      },
+      "rpg:wp_gate": {
+        "remove": {
+          "component_groups": [
+            "rpg:wp_field",
+            "rpg:wp_forge",
+            "rpg:wp_market",
+            "rpg:wp_tavern",
+            "rpg:wp_plaza",
+            "rpg:wp_home",
+            "rpg:wp_church",
+            "rpg:wp_stocks",
+            "rpg:wp_jail",
+            "rpg:wp_jail_patrol",
+            "rpg:wp_patrol_0",
+            "rpg:wp_patrol_1",
+            "rpg:wp_patrol_2",
+            "rpg:wp_patrol_3"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:wp_gate"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -20,8 +20,17 @@ import gen_textures as T  # noqa: E402
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 BP = os.path.join(ROOT, 'packs', 'AetheriaRPG_BP')
 RP = os.path.join(ROOT, 'packs', 'AetheriaRPG_RP')
-VERSION = [1, 0, 0]
-MIN_ENGINE = [1, 21, 90]
+ART = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'art')
+# v2 (contrato §0): juego 1.26.10+, @minecraft/server 2.6.0, @minecraft/server-ui 2.0.0.
+VERSION = [2, 0, 0]
+MIN_ENGINE = [1, 26, 10]
+SERVER_API = '2.6.0'
+SERVER_UI_API = '2.0.0'
+# Versiones de formato usadas por los ficheros generados (todas <= MIN_ENGINE).
+FMT_ENTITY = '1.21.0'      # monstruos, jefes, espíritu (sin cambios de esquema)
+FMT_ENTITY_V2 = '1.26.0'   # NPC, marcador, tomate y jugador (formato de la vanilla 1.26.10)
+FMT_ITEM = '1.21.40'
+FMT_BLOCK = '1.21.40'
 
 UUID = {
     'bp_header': 'a3e1c7d2-5b4f-4e8a-9c1d-2f6b7e8a9d01',
@@ -64,8 +73,8 @@ def manifests():
         ],
         'dependencies': [
             {'uuid': UUID['rp_header'], 'version': VERSION},
-            {'module_name': '@minecraft/server', 'version': '2.0.0'},
-            {'module_name': '@minecraft/server-ui', 'version': '2.0.0'},
+            {'module_name': '@minecraft/server', 'version': SERVER_API},
+            {'module_name': '@minecraft/server-ui', 'version': SERVER_UI_API},
         ],
         'metadata': {'authors': ['Aetheria RPG'], 'product_type': 'addon'},
     })
@@ -80,8 +89,26 @@ def manifests():
         'dependencies': [{'uuid': UUID['bp_header'], 'version': VERSION}],
         'metadata': {'authors': ['Aetheria RPG'], 'product_type': 'addon'},
     })
-    T.pack_icon(png(os.path.join(BP, 'pack_icon.png')), '#c070ff', 1)
-    T.pack_icon(png(os.path.join(RP, 'pack_icon.png')), '#ffb040', 2)
+    pack_icons()
+
+
+def pack_icons():
+    """Iconos de los paquetes: arte de tools/art (256×256) o, si falta, el icono procedural."""
+    for pack, art, accent, seed in ((BP, 'pack_icon_a.png', '#c070ff', 1), (RP, 'pack_icon_b.png', '#ffb040', 2)):
+        dst = png(os.path.join(pack, 'pack_icon.png'))
+        src = os.path.join(ART, art)
+        try:
+            from PIL import Image
+            with Image.open(src) as im:
+                im.load()
+                out = im.convert('RGBA') if im.mode not in ('RGB', 'RGBA') else im.copy()
+            if out.size != (256, 256):
+                out = out.resize((256, 256), Image.LANCZOS)
+            out.save(dst, 'PNG')
+        except Exception as err:  # noqa: BLE001 - nunca romper el build por el icono
+            if os.path.exists(src):
+                print(f'Aviso: no se pudo usar {art} ({err}); se genera el icono procedural.')
+            T.pack_icon(dst, accent, seed)
 
 
 # ======================================================================================
@@ -382,14 +409,101 @@ def client_entity(identifier, geo_id, texture, egg, scale_hint=None, extra_scrip
     return {'format_version': '1.10.0', 'minecraft:client_entity': {'description': desc}}
 
 
-def tier_groups(hp, dmg):
+# Comportamiento extra de cada monstruo (contrato §2.6). Claves:
+#   pack   -> al recibir daño avisa a los de su misma especie (hurt_by_target.alert_same_type)
+#   leap   -> salta sobre su presa (behavior.leap_at_target); leap_air: también en el aire
+#   kite   -> lanzador: se aparta del jugador que se acerca a menos de 5 bloques mientras dispara
+#   flee   -> huye con poca vida (environment_sensor sobre actor_health) y vuelve al curarse
+#   sun    -> más lento a la luz del día en superficie (trol)
+#   kb     -> resistencia al empuje
+MOB_AI = {
+    'goblin': dict(pack=True, flee=True),
+    'dire_wolf': dict(pack=True, leap=0.45),
+    'orc': dict(pack=True, kb=0.3),
+    'scorpion': dict(leap=0.35),
+    'skeleton_knight': dict(pack=True, kb=0.75),
+    'giant_spider': dict(leap=0.5, leap_air=True, kb=0.3),
+    'wraith': dict(pack=True),
+    'mimic': dict(kb=0.6),
+    'dark_mage': dict(kite=True),
+    'ice_golem': dict(kb=0.6),
+    'fire_imp': dict(pack=True, kite=True),
+    'troll': dict(sun=True, kb=0.6),
+    'demon_knight': dict(pack=True, kb=0.7),
+}
+
+# Lo que atacan los monstruos: jugadores, espíritus aliados, aldeanos y guardias (no el resto de NPCs).
+MONSTER_PREY = ['player', 'rpg_spirit', 'villager', 'rpg_guard']
+
+
+def fam_test(value, subject='other', operator=None):
+    t = {'test': 'is_family', 'subject': subject, 'value': value}
+    if operator:
+        t['operator'] = operator
+    return t
+
+
+def eff_box(m):
+    """F1: el motor multiplica minecraft:collision_box por minecraft:scale. 'box' es el tamaño real
+    deseado en el mundo, así que se divide por la escala para no aplicarla dos veces."""
+    s = m['scale'] or 1
+    return {'width': round(m['box'][0] / s, 4), 'height': round(m['box'][1] / s, 4)}
+
+
+def flee_sensor(max_hp):
+    """Sensor de huida del goblin para un nivel de vida concreto (umbral 30 %, vuelve al 60 %)."""
+    low = max(3, round(max_hp * 0.3))
+    ok = max(low + 2, round(max_hp * 0.6))
+    return {'minecraft:environment_sensor': {'triggers': [
+        {'filters': {'all_of': [
+            {'test': 'actor_health', 'subject': 'self', 'operator': '<=', 'value': low},
+            {'test': 'bool_property', 'subject': 'self', 'domain': 'rpg:fleeing', 'operator': '==', 'value': False},
+        ]}, 'event': 'rpg:flee_start'},
+        {'filters': {'all_of': [
+            {'test': 'actor_health', 'subject': 'self', 'operator': '>=', 'value': ok},
+            {'test': 'bool_property', 'subject': 'self', 'domain': 'rpg:fleeing', 'operator': '==', 'value': True},
+        ]}, 'event': 'rpg:flee_end'},
+    ]}}
+
+
+def tier_groups(hp, dmg, key=None):
     groups, events = {}, {}
     names = [f'rpg:tier_{i}' for i in range(5)]
+    ai = MOB_AI.get(key, {})
     for i, mult in enumerate(TIER_MULT):
         h = round(hp * mult)
         groups[names[i]] = {'minecraft:health': {'value': h, 'max': h}, 'minecraft:attack': {'damage': round(dmg * (1 + i * 0.35), 1)}}
+        if ai.get('flee'):
+            groups[names[i]].update(flee_sensor(h))
         events[names[i]] = {'remove': {'component_groups': [n for n in names if n != names[i]]}, 'add': {'component_groups': [names[i]]}}
     return groups, events
+
+
+def ai_groups(key, m):
+    """Grupos/eventos/propiedades adicionales según MOB_AI (huida por vida baja, lentitud al sol)."""
+    ai = MOB_AI.get(key, {})
+    groups, events, props = {}, {}, {}
+    if ai.get('flee'):
+        props['rpg:fleeing'] = {'type': 'bool', 'default': False, 'client_sync': False}
+        groups['rpg:fleeing'] = {
+            'minecraft:behavior.avoid_mob_type': {
+                'priority': 1, 'max_dist': 16, 'max_flee': 20, 'sprint_distance': 10, 'remove_target': True, 'ignore_visibility': True,
+                'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': 1.5,
+                'entity_types': [{'filters': {'any_of': [fam_test(f) for f in MONSTER_PREY]}, 'max_dist': 16,
+                                  'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': 1.5}],
+            },
+            # Se lame las heridas: regenera un poco y, pasado un rato, vuelve a la carga.
+            'minecraft:spell_effects': {'add_effects': [{'effect': 'regeneration', 'duration': 12, 'amplifier': 0, 'display_on_screen_animation': False}]},
+            'minecraft:timer': {'looping': False, 'time': [10, 16], 'time_down_event': {'event': 'rpg:flee_end', 'target': 'self'}},
+        }
+        events['rpg:flee_start'] = {'set_property': {'rpg:fleeing': True}, 'add': {'component_groups': ['rpg:fleeing']}}
+        events['rpg:flee_end'] = {'set_property': {'rpg:fleeing': False}, 'remove': {'component_groups': ['rpg:fleeing']}}
+    if ai.get('sun'):
+        props['rpg:sunlit'] = {'type': 'bool', 'default': False, 'client_sync': False}
+        groups['rpg:sunlit'] = {'minecraft:movement': {'value': round(m['speed'] * 0.6, 3)}}
+        events['rpg:sun_on'] = {'set_property': {'rpg:sunlit': True}, 'add': {'component_groups': ['rpg:sunlit']}}
+        events['rpg:sun_off'] = {'set_property': {'rpg:sunlit': False}, 'remove': {'component_groups': ['rpg:sunlit']}}
+    return groups, events, props
 
 
 def hostile_components(key, m, boss=False):
@@ -398,31 +512,36 @@ def hostile_components(key, m, boss=False):
         fam.append('undead')
     if boss:
         fam += ['rpg_boss', 'boss']
-    targets = [{'filters': {'any_of': [{'test': 'is_family', 'subject': 'other', 'value': 'player'}, {'test': 'is_family', 'subject': 'other', 'value': 'rpg_spirit'}, {'test': 'is_family', 'subject': 'other', 'value': 'villager'}]}, 'max_dist': 32 if boss else 20}]
+    ai = {} if boss else MOB_AI.get(key, {})
+    rng = 32 if boss else 20
+    targets = [{'filters': {'any_of': [fam_test(f) for f in MONSTER_PREY]}, 'max_dist': rng}]
     attack = {'damage': m['dmg']}
     if m.get('attack_effect'):
         attack.update({'effect_name': m['attack_effect'], 'effect_duration': 4})
+    hurt = {'priority': 1, 'alert_same_type': bool(ai.get('pack')),
+            # Nunca se pelean entre monstruos por un golpe accidental (flechas, explosiones...).
+            'entity_types': [{'filters': {'none_of': [fam_test('monster')]}, 'max_dist': 32}]}
     c = {
         'minecraft:type_family': {'family': fam},
-        'minecraft:collision_box': {'width': m['box'][0], 'height': m['box'][1]},
+        'minecraft:collision_box': eff_box(m),
         'minecraft:scale': {'value': m['scale']},
         'minecraft:health': {'value': m['hp'], 'max': m['hp']},
         'minecraft:attack': attack,
         'minecraft:movement': {'value': m['speed']},
         'minecraft:movement.basic': {},
-        'minecraft:navigation.walk': {'can_path_over_water': True, 'avoid_water': True, 'can_open_doors': False},
+        'minecraft:navigation.walk': {'can_path_over_water': True, 'avoid_water': True, 'can_open_doors': False, 'avoid_damage_blocks': True},
         'minecraft:jump.static': {},
         'minecraft:can_climb': {},
         'minecraft:physics': {},
         'minecraft:pushable': {'is_pushable': not boss, 'is_pushable_by_piston': not boss},
         'minecraft:breathable': {'total_supply': 15, 'suffocate_time': 0},
         'minecraft:nameable': {},
-        'minecraft:follow_range': {'value': 48 if boss else 32},
+        'minecraft:follow_range': {'value': 48 if boss else 32, 'max': 64 if boss else 40},
         'minecraft:loot': {'table': f'loot_tables/entities/rpg_{key}.json'},
         'minecraft:experience_reward': {'on_death': f"query.last_hit_by_player ? {40 if boss else 5 + m['hp'] // 6} : 0"},
         'minecraft:behavior.float': {'priority': 0},
-        'minecraft:behavior.hurt_by_target': {'priority': 1},
-        'minecraft:behavior.nearest_attackable_target': {'priority': 2, 'must_see': not boss, 'reselect_targets': True, 'within_radius': 32 if boss else 20, 'entity_types': targets},
+        'minecraft:behavior.hurt_by_target': hurt,
+        'minecraft:behavior.nearest_attackable_target': {'priority': 2, 'must_see': not boss, 'reselect_targets': True, 'within_radius': rng, 'entity_types': targets},
         'minecraft:behavior.random_stroll': {'priority': 6, 'speed_multiplier': 0.8},
         'minecraft:behavior.look_at_player': {'priority': 7, 'look_distance': 10},
         'minecraft:behavior.random_look_around': {'priority': 8},
@@ -433,6 +552,35 @@ def hostile_components(key, m, boss=False):
         c['minecraft:behavior.ranged_attack'] = {'priority': 3, 'attack_interval_min': 2, 'attack_interval_max': 4, 'attack_radius': 14}
     else:
         c['minecraft:behavior.melee_attack'] = {'priority': 3, 'speed_multiplier': 1.25, 'track_target': True}
+    if ai.get('leap'):
+        # Como el lobo y la araña vanilla: el salto tiene más prioridad que el cuerpo a cuerpo.
+        c['minecraft:behavior.leap_at_target'] = {'priority': 3, 'yd': ai['leap'], 'must_be_on_ground': not ai.get('leap_air')}
+        if 'minecraft:behavior.melee_attack' in c:
+            c['minecraft:behavior.melee_attack']['priority'] = 4
+    if ai.get('kite'):
+        # Los lanzadores mantienen la distancia: retroceden si un jugador se acerca a menos de 5 bloques.
+        c['minecraft:behavior.avoid_mob_type'] = {
+            'priority': 2, 'max_dist': 5, 'max_flee': 9, 'sprint_distance': 3, 'ignore_visibility': False, 'remove_target': False,
+            'walk_speed_multiplier': 1.1, 'sprint_speed_multiplier': 1.3,
+            'entity_types': [{'filters': fam_test('player'), 'max_dist': 5, 'walk_speed_multiplier': 1.1, 'sprint_speed_multiplier': 1.3}],
+        }
+    if ai.get('sun'):
+        c['minecraft:environment_sensor'] = {'triggers': [
+            {'filters': {'all_of': [
+                {'test': 'is_daytime', 'subject': 'self', 'value': True},
+                {'test': 'is_underground', 'subject': 'self', 'value': False},
+                {'test': 'bool_property', 'subject': 'self', 'domain': 'rpg:sunlit', 'operator': '==', 'value': False},
+            ]}, 'event': 'rpg:sun_on'},
+            {'filters': {'all_of': [
+                {'test': 'bool_property', 'subject': 'self', 'domain': 'rpg:sunlit', 'operator': '==', 'value': True},
+                {'any_of': [
+                    {'test': 'is_daytime', 'subject': 'self', 'value': False},
+                    {'test': 'is_underground', 'subject': 'self', 'value': True},
+                ]},
+            ]}, 'event': 'rpg:sun_off'},
+        ]}
+    if ai.get('kb'):
+        c['minecraft:knockback_resistance'] = {'value': ai['kb']}
     if m.get('fire'):
         c['minecraft:fire_immune'] = {}
     if m.get('undead') and not boss:
@@ -440,14 +588,15 @@ def hostile_components(key, m, boss=False):
     if m.get('regen'):
         c['minecraft:spell_effects'] = {'add_effects': [{'effect': 'regeneration', 'duration': 999999, 'amplifier': 0, 'display_on_screen_animation': False}]}
     if boss:
+        # Los jefes nunca desaparecen (persistentes, sin minecraft:despawn) y apenas retroceden al recibir golpes.
         c['minecraft:boss'] = {'should_darken_sky': False, 'hud_range': 55, 'name': m['name']}
         c['minecraft:persistent'] = {}
-        c['minecraft:knockback_resistance'] = {'value': m.get('kb', 0.8)}
+        c['minecraft:knockback_resistance'] = {'value': max(0.9, m.get('kb', 0.9))}
         c['minecraft:damage_sensor'] = {'triggers': [{'cause': 'fall', 'deals_damage': 'no'}, {'cause': 'suffocation', 'deals_damage': 'no'}, {'cause': 'drowning', 'deals_damage': 'no'}]}
     else:
         c['minecraft:despawn'] = {'despawn_from_distance': {}}
     if m['geo'] == 'arthropod':
-        c['minecraft:navigation.climb'] = {'can_path_over_water': True}
+        c['minecraft:navigation.climb'] = {'can_path_over_water': True, 'avoid_damage_blocks': True}
         del c['minecraft:navigation.walk']
     return c
 
@@ -477,31 +626,464 @@ def loot_mob(key, m, boss):
     return {'pools': pools}
 
 
+# Bloques sobre los que nunca aparecen criaturas del Nether (igual que la vanilla: piglin, magma cube...).
+NETHER_PREVENTED = ['minecraft:nether_wart_block', 'minecraft:shroomlight']
+VALID_POPULATIONS = ('animal', 'water_animal', 'monster', 'ambient', 'cat', 'pillager')
+
+
 def spawn_rule(key, sp):
-    cond = {
-        'minecraft:weight': {'default': sp['weight']},
-        'minecraft:herd': {'min_size': sp['herd'][0], 'max_size': sp['herd'][1]},
-        'minecraft:difficulty_filter': {'min': 'easy', 'max': 'hard'},
-        'minecraft:biome_filter': {'any_of': [{'test': 'has_biome_tag', 'operator': '==', 'value': t} for t in sp['tags']]},
-    }
-    if sp.get('underground'):
-        cond['minecraft:spawns_underground'] = {}
-        cond['minecraft:height_filter'] = {'min': -60, 'max': 40}
-    else:
-        cond['minecraft:spawns_on_surface'] = {}
-    if sp.get('dark'):
-        cond['minecraft:brightness_filter'] = {'min': 0, 'max': 7, 'adjust_for_weather': True}
-    return {'format_version': '1.8.0', 'minecraft:spawn_rules': {'description': {'identifier': f'rpg:{key}', 'population_control': 'monster'}, 'conditions': [cond]}}
+    """Reglas de aparición. F2: en el Nether no existe «superficie» útil (el techo de roca madre lo es),
+    así que, como la vanilla (piglin, zombified piglin, magma cube), se usa spawns_underground."""
+    def base(tags):
+        return {
+            'minecraft:weight': {'default': sp['weight']},
+            'minecraft:herd': {'min_size': sp['herd'][0], 'max_size': sp['herd'][1]},
+            'minecraft:difficulty_filter': {'min': 'easy', 'max': 'hard'},
+            'minecraft:biome_filter': {'any_of': [{'test': 'has_biome_tag', 'operator': '==', 'value': t} for t in tags]},
+        }
+
+    conds = []
+    nether = [t for t in sp['tags'] if t == 'nether']
+    other = [t for t in sp['tags'] if t != 'nether']
+    if nether:
+        c = base(nether)
+        c['minecraft:spawns_underground'] = {}
+        c['minecraft:spawns_on_block_prevented_filter'] = list(NETHER_PREVENTED)
+        conds.append(c)
+    if other:
+        c = base(other)
+        if sp.get('underground'):
+            c['minecraft:spawns_underground'] = {}
+            c['minecraft:height_filter'] = {'min': -60, 'max': 40}
+        else:
+            c['minecraft:spawns_on_surface'] = {}
+        if sp.get('dark'):
+            c['minecraft:brightness_filter'] = {'min': 0, 'max': 7, 'adjust_for_weather': True}
+        conds.append(c)
+    pop = sp.get('population', 'monster')
+    assert pop in VALID_POPULATIONS, f'population_control no válido: {pop}'
+    return {'format_version': '1.8.0', 'minecraft:spawn_rules': {'description': {'identifier': f'rpg:{key}', 'population_control': pop}, 'conditions': conds}}
 
 
-def scale_groups(prefix='rpg:scale_'):
+SCALE_VALUES = list(range(30, 140, 5))   # rpg:scale_30 .. rpg:scale_135
+MAX_BOX_W, MAX_BOX_H = 0.66, 1.95        # contrato §1: tope del hitbox efectivo
+
+
+def scaled_box(pct, base_w=0.6, base_h=1.8):
+    """Caja de colisión a declarar para que el hitbox EFECTIVO (caja × escala) sea
+    width = min(0.6·s, 0.66), height = min(1.8·s, 1.95)."""
+    s = pct / 100
+    eff_w = min(base_w * s, MAX_BOX_W)
+    eff_h = min(base_h * s, MAX_BOX_H)
+    return {'width': round(eff_w / s, 4), 'height': round(eff_h / s, 4)}
+
+
+def scale_groups(prefix='rpg:scale_', with_box=True):
     groups, events = {}, {}
-    vals = list(range(30, 140, 5))
-    names = [f'{prefix}{v}' for v in vals]
-    for v, n in zip(vals, names):
+    names = [f'{prefix}{v}' for v in SCALE_VALUES]
+    for v, n in zip(SCALE_VALUES, names):
         groups[n] = {'minecraft:scale': {'value': round(v / 100, 2)}}
+        if with_box:
+            groups[n]['minecraft:collision_box'] = scaled_box(v)
         events[n] = {'remove': {'component_groups': [x for x in names if x != n]}, 'add': {'component_groups': [n]}}
     return groups, events
+
+
+# ======================================================================================
+# NPC, marcadores de lugar, tomate y espíritu (contrato §2)
+# ======================================================================================
+WP_KINDS = ['field', 'forge', 'market', 'tavern', 'plaza', 'home', 'church', 'stocks', 'jail', 'jail_patrol',
+            'patrol_0', 'patrol_1', 'patrol_2', 'patrol_3', 'gate']
+
+NPC_BASE_SPEED = 0.5   # minecraft:movement base; las velocidades de la tabla son multiplicadores sobre ella
+NPC_PROPS = {
+    'rpg:skin': {'type': 'int', 'range': [0, 159], 'default': 0, 'client_sync': True},
+    'rpg:geo': {'type': 'int', 'range': [0, 5], 'default': 0, 'client_sync': True},
+    'rpg:hat': {'type': 'int', 'range': [0, 7], 'default': 0, 'client_sync': True},
+    'rpg:tool': {'type': 'int', 'range': [0, 7], 'default': 0, 'client_sync': True},
+    'rpg:alert': {'type': 'bool', 'default': False, 'client_sync': True},
+    'rpg:mood': {'type': 'int', 'range': [0, 3], 'default': 0, 'client_sync': True},
+}
+
+# Prioridades de los objetivos de IA (número menor = más prioridad). Los objetivos de «destino»
+# (nearest_*_target) compiten entre sí; los de movimiento compiten entre sí.
+P_FLOAT = 0
+P_AVOID = 1           # huir de monstruos / de jugadores (ladrón)
+P_TARGET_URGENT = 1   # buscar al reo, escoltar, avisar a la guardia, abuchear
+P_GUARD_HURT = 2      # guardia: devolver el golpe a un monstruo
+P_FOLLOW = 2          # llegada precisa al marcador (follow_mob)
+P_MELEE = 3           # guardia: cuerpo a cuerpo
+P_GUARD_SCAN = 3      # guardia: monstruos a <= 16 bloques (por debajo de las actividades urgentes)
+P_RANGED = 3          # tirar tomates
+P_TARGET_PLACE = 4    # elegir el marcador del lugar de la actividad
+P_MOVE_TOWARDS = 4    # aproximación de largo alcance hacia el objetivo
+P_HOME = 5            # volver a casa (residentes/personal) si no hay otra cosa que hacer
+P_DOOR = 6
+P_LOOK_PLAYER = 7
+P_STROLL = 8
+P_IDLE = 9
+
+# Actividades (contrato §2.1, tabla). kind:
+#   idle  -> paseo libre       place -> ir al marcador más cercano de la familia `fam`
+#   sleep -> quieto             alarm -> correr al guardia más cercano
+#   jeer  -> tirar tomates      flee  -> huir de los jugadores       hunt -> perseguir al buscado
+NPC_ACTS = [
+    ('idle', dict(kind='idle', speed=0.5, xz=8)),
+    ('work_field', dict(kind='place', fam='rpg_wp_field', speed=0.6, stop=3.0)),
+    ('work_forge', dict(kind='place', fam='rpg_wp_forge', speed=0.6, stop=2.0)),
+    ('work_market', dict(kind='place', fam='rpg_wp_market', speed=0.6, stop=2.5)),
+    ('tavern', dict(kind='place', fam='rpg_wp_tavern', speed=0.6, stop=2.5)),
+    ('plaza', dict(kind='place', fam='rpg_wp_plaza', speed=0.6, stop=3.5)),
+    ('home', dict(kind='place', fam='rpg_wp_home', speed=0.6, stop=1.2)),
+    ('church', dict(kind='place', fam='rpg_wp_church', speed=0.6, stop=2.5)),
+    ('sleep', dict(kind='sleep')),
+] + [(f'patrol_{i}', dict(kind='place', fam=f'rpg_wp_patrol_{i}', speed=0.6, stop=2.0, near=32)) for i in range(4)] + [
+    ('patrol_jail', dict(kind='place', fam='rpg_wp_jail_patrol', speed=0.5, stop=1.5)),
+    ('alarm', dict(kind='alarm', fam='rpg_guard', speed=1.4, stop=2.0)),
+    ('jeer', dict(kind='jeer', tag='rpg_humiliated', speed=0.6)),
+    ('flee', dict(kind='flee', speed=1.5)),
+    ('hunt', dict(kind='hunt', tag='rpg_wanted', speed=1.25)),
+    ('escort_stocks', dict(kind='place', fam='rpg_wp_stocks', speed=0.55, stop=1.5, urgent=True, near=32)),
+    ('escort_jail', dict(kind='place', fam='rpg_wp_jail', speed=0.55, stop=1.5, urgent=True, near=32)),
+]
+ACT_GROUPS = [f'rpg:act_{a}' for a, _ in NPC_ACTS]
+ROLE_GROUPS = ['rpg:wanderer', 'rpg:citizen', 'rpg:resident', 'rpg:staff', 'rpg:guard']
+
+# Caminos que los NPC prefieren (como el aldeano vanilla), con los bloques de sendero de las 10 culturas.
+NPC_PATH_BLOCKS = ['grass_path', 'gravel', 'moss_block', 'mossy_cobblestone', 'cobblestone', 'cobbled_deepslate', 'coarse_dirt',
+                   'podzol', 'packed_mud', 'blackstone', 'soul_soil', 'polished_blackstone', 'polished_diorite', 'smooth_stone',
+                   'calcite', 'polished_deepslate', 'red_sand', 'cut_red_sandstone']
+NPC_FLOOR_BLOCKS = ['stone', 'stone_bricks', 'mossy_stone_bricks', 'cracked_stone_bricks', 'deepslate_bricks', 'deepslate_tiles',
+                    'sandstone', 'cut_sandstone', 'smooth_sandstone', 'red_sandstone', 'smooth_red_sandstone', 'brick_block',
+                    'oak_planks', 'spruce_planks', 'birch_planks', 'jungle_planks', 'acacia_planks', 'dark_oak_planks', 'mangrove_planks',
+                    'cherry_planks', 'bamboo_planks', 'crimson_planks', 'warped_planks', 'polished_andesite', 'polished_granite',
+                    'quartz_block', 'smooth_quartz', 'nether_brick', 'red_nether_brick', 'end_bricks', 'tuff_bricks', 'mud_bricks']
+NPC_AVOID_BLOCKS = ['bed', 'lectern', 'composter', 'grindstone', 'blast_furnace', 'smoker', 'fletching_table', 'cartography_table',
+                    'brewing_stand', 'smithing_table', 'cauldron', 'barrel', 'loom', 'stonecutter_block', 'anvil', 'campfire', 'soul_campfire']
+
+
+def has_tag_test(tag, subject='other'):
+    return {'test': 'has_tag', 'subject': subject, 'value': tag}
+
+
+def act_components(name, spec):
+    """Componentes del grupo rpg:act_<name>."""
+    kind = spec['kind']
+    sp = spec.get('speed', 0.5)
+    c = {}
+    if kind == 'idle':
+        c['minecraft:behavior.random_stroll'] = {'priority': P_STROLL, 'speed_multiplier': sp, 'xz_dist': spec.get('xz', 8), 'y_dist': 3, 'interval': 120}
+    elif kind == 'sleep':
+        # Quieto (también lo usa la justicia para «congelar» al guardia mientras el script lo mueve por la plaza):
+        # sin velocidad y sin paseos; solo mira alrededor. El aspecto de dormido lo da rpg:mood == 3 en el cliente.
+        c['minecraft:movement'] = {'value': 0}
+        c['minecraft:behavior.random_stroll'] = {'priority': P_IDLE, 'speed_multiplier': 0, 'xz_dist': 1, 'y_dist': 1, 'interval': 1000000}
+        c['minecraft:behavior.look_at_player'] = {'priority': P_LOOK_PLAYER, 'look_distance': 6, 'probability': 0.05}
+    elif kind in ('place', 'alarm'):
+        fam = spec['fam']
+        urgent = spec.get('urgent') or kind == 'alarm'
+        flt = fam_test(fam)
+        if kind == 'alarm':
+            # El testigo corre al guardia más cercano (un guardia nunca se elige a sí mismo como destino de aviso).
+            flt = {'all_of': [fam_test('rpg_guard'), fam_test('rpg_guard', 'self', '!=')]}
+        c['minecraft:behavior.nearest_attackable_target'] = {
+            'priority': P_TARGET_URGENT if urgent else P_TARGET_PLACE,
+            'must_see': False, 'must_reach': False, 'reselect_targets': True,
+            'within_radius': 96, 'scan_interval': 10 if urgent else 20,
+            'entity_types': [{'filters': flt, 'max_dist': 96, 'must_see': False}],
+        }
+        # Llegada precisa: sigue al marcador SOLO si es su objetivo actual (así un guardia que ha fijado
+        # como objetivo a un monstruo deja de ir al marcador y pelea con su cuerpo a cuerpo).
+        c['minecraft:behavior.follow_mob'] = {
+            'priority': P_FOLLOW, 'search_range': spec.get('near', 24), 'stop_distance': spec.get('stop', 2.0),
+            'speed_multiplier': sp, 'use_home_position_restriction': False,
+            'filters': {'all_of': [fam_test(fam), fam_test(fam, 'target')]},
+        }
+        # Aproximación de largo alcance (hasta 96 bloques) hacia el objetivo actual.
+        c['minecraft:behavior.move_towards_target'] = {'priority': P_MOVE_TOWARDS, 'speed_multiplier': sp, 'within_radius': 96}
+        c['minecraft:behavior.random_stroll'] = {'priority': P_STROLL, 'speed_multiplier': round(sp * 0.8, 2), 'xz_dist': 3, 'y_dist': 2, 'interval': 80}
+        if spec.get('urgent'):
+            # Escolta: el guardia camina al paso de la cuerda.
+            c['minecraft:behavior.melee_attack'] = {'priority': P_MELEE, 'speed_multiplier': sp, 'track_target': True, 'require_complete_path': False}
+    elif kind == 'jeer':
+        c['minecraft:behavior.nearest_attackable_target'] = {
+            'priority': P_TARGET_URGENT, 'must_see': False, 'reselect_targets': True, 'within_radius': 32, 'scan_interval': 10,
+            'entity_types': [{'filters': {'all_of': [fam_test('player'), has_tag_test(spec['tag'])]}, 'max_dist': 32, 'must_see': False}],
+        }
+        c['minecraft:shooter'] = {'def': 'rpg:tomato'}
+        c['minecraft:behavior.ranged_attack'] = {'priority': P_RANGED, 'attack_interval_min': 1.0, 'attack_interval_max': 3.0,
+                                                 'attack_radius': 10, 'speed_multiplier': sp}
+        c['minecraft:behavior.random_stroll'] = {'priority': P_STROLL, 'speed_multiplier': 0.4, 'xz_dist': 3, 'y_dist': 2, 'interval': 100}
+    elif kind == 'flee':
+        c['minecraft:behavior.avoid_mob_type'] = {
+            'priority': P_AVOID, 'max_dist': 20, 'max_flee': 28, 'sprint_distance': 14, 'ignore_visibility': True, 'remove_target': True,
+            'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': sp,
+            'entity_types': [
+                {'filters': fam_test('player'), 'max_dist': 20, 'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': sp},
+                {'filters': fam_test('monster'), 'max_dist': 8, 'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': sp},
+            ],
+        }
+        c['minecraft:behavior.random_stroll'] = {'priority': P_STROLL, 'speed_multiplier': 1.0, 'xz_dist': 12, 'y_dist': 3, 'interval': 20}
+    elif kind == 'hunt':
+        c['minecraft:behavior.nearest_attackable_target'] = {
+            'priority': P_TARGET_URGENT, 'must_see': False, 'reselect_targets': True, 'within_radius': 64, 'scan_interval': 10,
+            'entity_types': [{'filters': {'all_of': [fam_test('player'), has_tag_test(spec['tag'])]}, 'max_dist': 64, 'must_see': False}],
+        }
+        # Guardias: se acercan y golpean (el script convierte el golpe en arresto, beforeEvents.entityHurt).
+        c['minecraft:behavior.melee_attack'] = {'priority': P_MELEE, 'speed_multiplier': sp, 'track_target': True,
+                                                'require_complete_path': False, 'cooldown_time': 1.0}
+        c['minecraft:behavior.move_towards_target'] = {'priority': P_MOVE_TOWARDS, 'speed_multiplier': sp, 'within_radius': 64}
+        c['minecraft:behavior.random_stroll'] = {'priority': P_STROLL, 'speed_multiplier': 0.6, 'xz_dist': 6, 'y_dist': 3, 'interval': 60}
+    return c
+
+
+def npc_json():
+    sg, se = scale_groups()
+    groups = {
+        'rpg:wanderer': {'minecraft:despawn': {'despawn_from_distance': {'min_distance': 48, 'max_distance': 96}}},
+        'rpg:citizen': {'minecraft:persistent': {}},
+        'rpg:resident': {
+            'minecraft:persistent': {},
+            'minecraft:home': {'restriction_radius': 10, 'restriction_type': 'random_movement'},
+            'minecraft:behavior.move_towards_home_restriction': {'priority': P_HOME, 'speed_multiplier': 0.6},
+        },
+        'rpg:staff': {
+            'minecraft:persistent': {},
+            'minecraft:home': {'restriction_radius': 3, 'restriction_type': 'random_movement'},
+            'minecraft:behavior.move_towards_home_restriction': {'priority': P_HOME, 'speed_multiplier': 0.6},
+        },
+        # Grupo permanente de los guardias (contrato §2.1).
+        'rpg:guard': {
+            'minecraft:type_family': {'family': ['npc', 'rpg_npc', 'rpg_guard', 'mob']},
+            'minecraft:health': {'value': 60, 'max': 60},
+            'minecraft:attack': {'damage': 5},
+            'minecraft:persistent': {},
+            'minecraft:knockback_resistance': {'value': 0.3},
+            'minecraft:behavior.melee_attack': {'priority': P_MELEE, 'speed_multiplier': 1.0, 'track_target': True, 'require_complete_path': False},
+            # Solo reacciona a monstruos: los golpes de jugadores los gestiona el script de justicia.
+            'minecraft:behavior.hurt_by_target': {'priority': P_GUARD_HURT, 'entity_types': [{'filters': fam_test('monster'), 'max_dist': 24}]},
+            'minecraft:behavior.nearest_prioritized_attackable_target': {
+                'priority': P_GUARD_SCAN, 'must_see': True, 'reselect_targets': True, 'within_radius': 16, 'scan_interval': 10,
+                'entity_types': [{'filters': fam_test('monster'), 'max_dist': 16, 'priority': 0}],
+            },
+        },
+    }
+    for a, spec in NPC_ACTS:
+        groups[f'rpg:act_{a}'] = act_components(a, spec)
+    groups.update(sg)
+
+    def act_event(a):
+        g = f'rpg:act_{a}'
+        return {'remove': {'component_groups': [x for x in ACT_GROUPS if x != g]}, 'add': {'component_groups': [g]}}
+
+    def spawn_event(roles):
+        return {'remove': {'component_groups': [r for r in ROLE_GROUPS if r not in roles] + [x for x in ACT_GROUPS if x != 'rpg:act_idle']},
+                'add': {'component_groups': roles + ['rpg:act_idle']}}
+
+    def make_event(roles):
+        return {'remove': {'component_groups': [r for r in ROLE_GROUPS if r not in roles]}, 'add': {'component_groups': roles}}
+
+    events = {
+        # Aparición natural / huevo: viajero que puede desaparecer. La condición evita convertir en viajero a un
+        # NPC que ya recibió su evento de aparición (rpg:spawn_*), sea cual sea el orden en que el motor los aplique.
+        'minecraft:entity_spawned': {'sequence': [
+            {'add': {'component_groups': ['rpg:act_idle']}},
+            {'filters': {'test': 'has_component', 'subject': 'self', 'operator': '!=', 'value': 'minecraft:persistent'},
+             'add': {'component_groups': ['rpg:wanderer']}},
+        ]},
+        'rpg:spawn_citizen': spawn_event(['rpg:citizen']),
+        'rpg:spawn_guard': spawn_event(['rpg:citizen', 'rpg:guard']),
+        'rpg:spawn_staff': spawn_event(['rpg:staff']),
+        'rpg:spawn_resident': spawn_event(['rpg:resident']),
+        'rpg:make_citizen': make_event(['rpg:citizen']),
+        'rpg:make_guard': make_event(['rpg:citizen', 'rpg:guard']),
+        'rpg:make_staff': make_event(['rpg:staff']),
+        'rpg:make_resident': make_event(['rpg:resident']),
+        'rpg:interacted': {},
+    }
+    for a, _ in NPC_ACTS:
+        events[f'rpg:act_{a}'] = act_event(a)
+    events.update(se)
+
+    components = {
+        'minecraft:type_family': {'family': ['npc', 'rpg_npc', 'mob']},
+        'minecraft:health': {'value': 40, 'max': 40},
+        'minecraft:collision_box': {'width': 0.6, 'height': 1.8},
+        'minecraft:movement': {'value': NPC_BASE_SPEED},
+        'minecraft:movement.basic': {},
+        # Puertas como el aldeano vanilla: navegación que abre/atraviesa puertas + anotación + cerrar al pasar.
+        'minecraft:navigation.walk': {'can_path_over_water': True, 'avoid_water': True, 'avoid_damage_blocks': True,
+                                      'can_open_doors': True, 'can_pass_doors': True, 'can_break_doors': False},
+        'minecraft:annotation.open_door': {},
+        'minecraft:behavior.open_door': {'priority': P_DOOR, 'close_door_after': True},
+        'minecraft:preferred_path': {
+            'default_block_cost': 1.5, 'jump_cost': 5, 'max_fall_blocks': 2,
+            'preferred_path_blocks': [
+                {'blocks': NPC_PATH_BLOCKS, 'cost': 0},
+                {'blocks': NPC_FLOOR_BLOCKS, 'cost': 1},
+                {'blocks': NPC_AVOID_BLOCKS, 'cost': 50},
+            ],
+        },
+        'minecraft:follow_range': {'value': 96, 'max': 96},
+        'minecraft:jump.static': {},
+        'minecraft:can_climb': {},
+        'minecraft:physics': {},
+        'minecraft:pushable': {'is_pushable': True, 'is_pushable_by_piston': True},
+        'minecraft:nameable': {'always_show': True, 'allow_name_tag_renaming': False},
+        'minecraft:breathable': {'total_supply': 15, 'suffocate_time': 0},
+        'minecraft:interact': {'interactions': [{'on_interact': {'filters': fam_test('player'), 'event': 'rpg:interacted'}, 'interact_text': 'action.interact.rpg_talk'}]},
+        # Solo los jugadores pueden herir a un NPC (y el script puede cancelarlo); los tomates no hacen daño.
+        'minecraft:damage_sensor': {'triggers': [
+            {'on_damage': {'filters': fam_test('player')}, 'deals_damage': 'yes'},
+            {'cause': 'all', 'deals_damage': 'no'},
+        ]},
+        'minecraft:behavior.float': {'priority': P_FLOAT},
+        # Los NPC que no son guardias huyen siempre de los monstruos cercanos.
+        'minecraft:behavior.avoid_mob_type': {
+            'priority': P_AVOID, 'max_dist': 8, 'max_flee': 12, 'sprint_distance': 5, 'remove_target': False,
+            'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': 1.5,
+            'entity_types': [{'filters': {'all_of': [fam_test('monster'), fam_test('rpg_guard', 'self', '!=')]},
+                              'max_dist': 8, 'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': 1.5}],
+        },
+        'minecraft:behavior.look_at_player': {'priority': P_LOOK_PLAYER, 'look_distance': 8, 'probability': 0.3},
+        'minecraft:behavior.random_look_around': {'priority': P_IDLE},
+        # Paseo de reserva (NPC antiguos sin grupo de actividad); cada rpg:act_* lo sustituye.
+        'minecraft:behavior.random_stroll': {'priority': P_IDLE, 'speed_multiplier': 0.4, 'xz_dist': 4, 'y_dist': 2, 'interval': 200},
+        'minecraft:conditional_bandwidth_optimization': {},
+    }
+    write(os.path.join(BP, 'entities', 'npc.json'), {'format_version': FMT_ENTITY_V2, 'minecraft:entity': {
+        'description': {'identifier': 'rpg:npc', 'is_spawnable': True, 'is_summonable': True, 'properties': dict(NPC_PROPS)},
+        'component_groups': groups,
+        'components': components,
+        'events': events,
+    }})
+    # F3: 'creature' no es una población válida; los viajeros comparten la de los animales.
+    write(os.path.join(BP, 'spawn_rules', 'npc.json'), {'format_version': '1.8.0', 'minecraft:spawn_rules': {
+        'description': {'identifier': 'rpg:npc', 'population_control': 'animal'},
+        'conditions': [{
+            'minecraft:spawns_on_surface': {},
+            'minecraft:brightness_filter': {'min': 8, 'max': 15, 'adjust_for_weather': False},
+            'minecraft:weight': {'default': 2},
+            'minecraft:herd': {'min_size': 1, 'max_size': 1},
+            'minecraft:biome_filter': {'any_of': [{'test': 'has_biome_tag', 'operator': '==', 'value': t} for t in ('plains', 'forest', 'savanna', 'taiga', 'rpg_enchanted')]},
+        }],
+    }})
+    return {
+        'entity.rpg:npc.name': 'Habitante de Aetheria',
+        'item.spawn_egg.entity.rpg:npc.name': 'Generar Habitante',
+        'action.interact.rpg_talk': 'Hablar',
+    }
+
+
+def waypoint_json():
+    """rpg:waypoint: marcador invisible de un lugar (contrato §2.3). Es un objetivo válido (vivo, con vida y
+    caja de colisión) para las actividades de los NPC, pero invulnerable, sin gravedad, inamovible y permanente.
+    No tiene la familia 'monster' ni 'mob', así que ni monstruos ni gólems lo atacan."""
+    groups, events = {}, {}
+    names = [f'rpg:wp_{k}' for k in WP_KINDS]
+    for k, n in zip(WP_KINDS, names):
+        groups[n] = {'minecraft:type_family': {'family': ['rpg_waypoint', 'rpg_wp', f'rpg_wp_{k}']}}
+        events[n] = {'remove': {'component_groups': [x for x in names if x != n]}, 'add': {'component_groups': [n]}}
+    write(os.path.join(BP, 'entities', 'waypoint.json'), {'format_version': FMT_ENTITY_V2, 'minecraft:entity': {
+        'description': {'identifier': 'rpg:waypoint', 'is_spawnable': False, 'is_summonable': True},
+        'component_groups': groups,
+        'components': {
+            'minecraft:type_family': {'family': ['rpg_waypoint', 'rpg_wp']},
+            'minecraft:health': {'value': 20, 'max': 20},
+            'minecraft:collision_box': {'width': 0.2, 'height': 0.2},
+            # Los golpes y proyectiles se comprueban contra esta caja diminuta enterrada bajo el marcador:
+            # el jugador no lo golpea sin querer al abrir una puerta y los tomates no se estrellan en él.
+            'minecraft:custom_hit_test': {'hitboxes': [{'width': 0.05, 'height': 0.05, 'pivot': [0, -3, 0]}]},
+            'minecraft:physics': {'has_gravity': False, 'has_collision': True},
+            'minecraft:pushable': {'is_pushable': False, 'is_pushable_by_piston': False},
+            'minecraft:knockback_resistance': {'value': 1.0},
+            'minecraft:damage_sensor': {'triggers': [{'cause': 'all', 'deals_damage': 'no'}]},
+            'minecraft:fire_immune': {},
+            'minecraft:breathable': {'total_supply': 15, 'suffocate_time': 0, 'breathes_air': True, 'breathes_water': True},
+            'minecraft:persistent': {},
+            'minecraft:conditional_bandwidth_optimization': {},
+        },
+        'events': events,
+    }})
+    return {'entity.rpg:waypoint.name': 'Marcador de lugar'}
+
+
+def tomato_json():
+    """rpg:tomato: proyectil sin daño (contrato §2.4). Lo lanzan los NPC con minecraft:shooter y los jugadores
+    con el objeto rpg:tomato; el script dispara Projectile.shoot() y pinta la salpicadura al impactar."""
+    write(os.path.join(BP, 'entities', 'tomato.json'), {'format_version': FMT_ENTITY_V2, 'minecraft:entity': {
+        'description': {'identifier': 'rpg:tomato', 'is_spawnable': False, 'is_summonable': True},
+        'components': {
+            'minecraft:type_family': {'family': ['rpg_tomato']},
+            'minecraft:collision_box': {'width': 0.25, 'height': 0.25},
+            'minecraft:projectile': {
+                # Sin impact_damage: el impacto no hace daño ni empuja; solo desaparece y avisa al script.
+                'on_hit': {'remove_on_hit': {}},
+                'power': 1.1, 'gravity': 0.05, 'angle_offset': 0.0,
+                'anchor': 1, 'offset': [0, -0.1, 0],
+                'uncertainty_base': 5, 'uncertainty_multiplier': 1,
+            },
+            'minecraft:physics': {},
+            'minecraft:pushable': {'is_pushable': True, 'is_pushable_by_piston': True},
+            'minecraft:conditional_bandwidth_optimization': {'default_values': {'max_optimized_distance': 80.0, 'max_dropped_ticks': 7, 'use_motion_prediction_hints': True}},
+        },
+    }})
+    return {'entity.rpg:tomato.name': 'Tomate'}
+
+
+def spirit_json():
+    """rpg:spirit (contrato §2.5): ataca monstruos o lo marcado con rpg_marked; nunca jugadores, NPC, marcadores ni aliados."""
+    pg, pe = {}, {}
+    names = [f'rpg:power_{i}' for i in range(5)]
+    for i, n in enumerate(names):
+        hp = [20, 35, 55, 80, 120][i]
+        pg[n] = {'minecraft:health': {'value': hp, 'max': hp}, 'minecraft:attack': {'damage': [4, 7, 11, 16, 24][i]}}
+        pe[n] = {'remove': {'component_groups': [x for x in names if x != n]}, 'add': {'component_groups': [n]}}
+    pe['minecraft:entity_spawned'] = {'add': {'component_groups': ['rpg:power_0']}}
+    never = [fam_test('player'), fam_test('npc'), fam_test('rpg_npc'), fam_test('rpg_waypoint'), fam_test('rpg_wp'),
+             fam_test('rpg_spirit'), fam_test('rpg_ally'), has_tag_test('rpg_ally'), has_tag_test('rpg_wp')]
+    prey = {'all_of': [{'any_of': [fam_test('monster'), has_tag_test('rpg_marked')]}, {'none_of': never}]}
+    write(os.path.join(BP, 'entities', 'spirit.json'), {'format_version': FMT_ENTITY, 'minecraft:entity': {
+        'description': {'identifier': 'rpg:spirit', 'is_spawnable': False, 'is_summonable': True, 'properties': {
+            'rpg:variant': {'type': 'int', 'range': [0, 11], 'default': 0, 'client_sync': True},
+        }},
+        'component_groups': pg,
+        'components': {
+            'minecraft:type_family': {'family': ['rpg_spirit', 'rpg_ally']},
+            'minecraft:health': {'value': 20, 'max': 20},
+            'minecraft:attack': {'damage': 4},
+            'minecraft:collision_box': {'width': 0.7, 'height': 1.2},
+            'minecraft:movement': {'value': 0.32},
+            'minecraft:movement.basic': {},
+            'minecraft:navigation.walk': {'can_path_over_water': True, 'avoid_water': False, 'avoid_damage_blocks': True},
+            'minecraft:jump.static': {},
+            'minecraft:physics': {},
+            'minecraft:pushable': {'is_pushable': True, 'is_pushable_by_piston': True},
+            'minecraft:fire_immune': {},
+            'minecraft:nameable': {'always_show': False},
+            'minecraft:follow_range': {'value': 24, 'max': 32},
+            'minecraft:breathable': {'total_supply': 15, 'suffocate_time': 0, 'breathes_water': True},
+            'minecraft:damage_sensor': {'triggers': [
+                {'on_damage': {'filters': fam_test('player')}, 'deals_damage': 'no'},
+                {'on_damage': {'filters': fam_test('rpg_npc')}, 'deals_damage': 'no'},
+                {'cause': 'fall', 'deals_damage': 'no'},
+                {'cause': 'suffocation', 'deals_damage': 'no'},
+            ]},
+            'minecraft:behavior.float': {'priority': 0},
+            'minecraft:behavior.nearest_attackable_target': {
+                'priority': 1, 'must_see': False, 'reselect_targets': True, 'within_radius': 18, 'scan_interval': 10,
+                'entity_types': [{'filters': prey, 'max_dist': 18}],
+            },
+            # Se defiende de quien le pegue, salvo jugadores, NPC y otros aliados.
+            'minecraft:behavior.hurt_by_target': {'priority': 2, 'entity_types': [{'filters': {'none_of': never}, 'max_dist': 18}]},
+            'minecraft:behavior.melee_attack': {'priority': 2, 'speed_multiplier': 1.3, 'track_target': True},
+            'minecraft:behavior.random_stroll': {'priority': 6, 'speed_multiplier': 0.8},
+            'minecraft:behavior.look_at_player': {'priority': 7, 'look_distance': 6},
+            'minecraft:conditional_bandwidth_optimization': {},
+        },
+        'events': pe,
+    }})
+    return {'entity.rpg:spirit.name': 'Espíritu Elemental'}
 
 
 def entities():
@@ -509,11 +1091,18 @@ def entities():
     for boss, table in ((False, MOBS), (True, BOSSES)):
         for key, m in table.items():
             ident = f'rpg:{key}'
-            tg, te = tier_groups(m['hp'], m['dmg'])
+            tg, te = tier_groups(m['hp'], m['dmg'], None if boss else key)
             events = {'minecraft:entity_spawned': {'add': {'component_groups': ['rpg:tier_0']}}}
             events.update(te)
-            data = {'format_version': '1.21.0', 'minecraft:entity': {
-                'description': {'identifier': ident, 'is_spawnable': True, 'is_summonable': True},
+            desc = {'identifier': ident, 'is_spawnable': True, 'is_summonable': True}
+            if not boss:
+                ag, ae, props = ai_groups(key, m)
+                tg.update(ag)
+                events.update(ae)
+                if props:
+                    desc['properties'] = props
+            data = {'format_version': FMT_ENTITY, 'minecraft:entity': {
+                'description': desc,
                 'component_groups': tg, 'components': hostile_components(key, m, boss), 'events': events}}
             write(os.path.join(BP, 'entities', f'{key}.json'), data)
             write(os.path.join(BP, 'loot_tables', 'entities', f'rpg_{key}.json'), loot_mob(key, m, boss))
@@ -525,78 +1114,11 @@ def entities():
             lang[f'entity.{ident}.name'] = m['name']
             lang[f'item.spawn_egg.entity.{ident}.name'] = f'Generar {m["name"]}'
 
-    # ---------------- NPC ----------------
-    sg, se = scale_groups()
-    npc_groups = {
-        'rpg:wanderer': {
-            'minecraft:despawn': {'despawn_from_distance': {'min_distance': 48, 'max_distance': 96}},
-            'minecraft:behavior.random_stroll': {'priority': 6, 'speed_multiplier': 0.6},
-        },
-        'rpg:resident': {
-            'minecraft:persistent': {},
-            'minecraft:home': {'restriction_radius': 10},
-            'minecraft:behavior.move_towards_home_restriction': {'priority': 4, 'speed_multiplier': 0.6},
-            'minecraft:behavior.random_stroll': {'priority': 6, 'speed_multiplier': 0.5, 'xz_dist': 4},
-        },
-        'rpg:staff': {
-            'minecraft:persistent': {},
-            'minecraft:home': {'restriction_radius': 3},
-            'minecraft:behavior.move_towards_home_restriction': {'priority': 3, 'speed_multiplier': 0.6},
-            'minecraft:behavior.random_stroll': {'priority': 7, 'speed_multiplier': 0.4, 'xz_dist': 2, 'interval': 400},
-        },
-    }
-    npc_groups.update(sg)
-    npc_events = {
-        'minecraft:entity_spawned': {'add': {'component_groups': ['rpg:wanderer']}},
-        'rpg:spawn_resident': {'add': {'component_groups': ['rpg:resident']}},
-        'rpg:spawn_staff': {'add': {'component_groups': ['rpg:staff']}},
-        'rpg:make_resident': {'remove': {'component_groups': ['rpg:wanderer', 'rpg:staff']}, 'add': {'component_groups': ['rpg:resident']}},
-        'rpg:make_staff': {'remove': {'component_groups': ['rpg:wanderer', 'rpg:resident']}, 'add': {'component_groups': ['rpg:staff']}},
-        'rpg:interacted': {},
-    }
-    npc_events.update(se)
-    write(os.path.join(BP, 'entities', 'npc.json'), {'format_version': '1.21.0', 'minecraft:entity': {
-        'description': {'identifier': 'rpg:npc', 'is_spawnable': True, 'is_summonable': True, 'properties': {
-            'rpg:skin': {'type': 'int', 'range': [0, 39], 'default': 0, 'client_sync': True},
-            'rpg:geo': {'type': 'int', 'range': [0, len(NPC_GEO_ORDER) - 1], 'default': 0, 'client_sync': True},
-        }},
-        'component_groups': npc_groups,
-        'components': {
-            'minecraft:type_family': {'family': ['npc', 'rpg_npc', 'mob']},
-            'minecraft:health': {'value': 40, 'max': 40},
-            'minecraft:collision_box': {'width': 0.6, 'height': 1.8},
-            'minecraft:movement': {'value': 0.5},
-            'minecraft:movement.basic': {},
-            'minecraft:navigation.walk': {'can_path_over_water': True, 'avoid_water': True, 'avoid_damage_blocks': True, 'can_open_doors': True, 'can_pass_doors': True},
-            'minecraft:jump.static': {},
-            'minecraft:can_climb': {},
-            'minecraft:physics': {},
-            'minecraft:pushable': {'is_pushable': True, 'is_pushable_by_piston': True},
-            'minecraft:nameable': {'always_show': True, 'allow_name_tag_renaming': False},
-            'minecraft:breathable': {'total_supply': 15, 'suffocate_time': 0},
-            'minecraft:interact': {'interactions': [{'on_interact': {'filters': {'test': 'is_family', 'subject': 'other', 'value': 'player'}, 'event': 'rpg:interacted'}, 'interact_text': 'action.interact.rpg_talk'}]},
-            'minecraft:damage_sensor': {'triggers': [
-                {'on_damage': {'filters': {'test': 'is_family', 'subject': 'other', 'value': 'player'}}, 'deals_damage': 'yes'},
-                {'cause': 'all', 'deals_damage': 'no'},
-            ]},
-            'minecraft:behavior.float': {'priority': 0},
-            'minecraft:behavior.look_at_player': {'priority': 5, 'look_distance': 8, 'probability': 0.3},
-            'minecraft:behavior.random_look_around': {'priority': 8},
-            'minecraft:behavior.open_door': {'priority': 6, 'close_door_after': True},
-            'minecraft:conditional_bandwidth_optimization': {},
-        },
-        'events': npc_events,
-    }})
-    write(os.path.join(BP, 'spawn_rules', 'npc.json'), {'format_version': '1.8.0', 'minecraft:spawn_rules': {
-        'description': {'identifier': 'rpg:npc', 'population_control': 'creature'},
-        'conditions': [{
-            'minecraft:spawns_on_surface': {},
-            'minecraft:brightness_filter': {'min': 8, 'max': 15, 'adjust_for_weather': False},
-            'minecraft:weight': {'default': 2},
-            'minecraft:herd': {'min_size': 1, 'max_size': 1},
-            'minecraft:biome_filter': {'any_of': [{'test': 'has_biome_tag', 'operator': '==', 'value': t} for t in ('plains', 'forest', 'savanna', 'taiga', 'rpg_enchanted')]},
-        }],
-    }})
+    # ---------------- NPC, marcadores y tomate (comportamiento) ----------------
+    lang.update(npc_json())
+    lang.update(waypoint_json())
+    lang.update(tomato_json())
+
     # Pieles de NPC: 10 razas × 4 (2 hombres, 2 mujeres)
     races = [
         ('humano', [('#e0ac69', '#4a3020', '#3a6ea5', '#3b3b5a'), ('#c68642', '#1a1a1a', '#8a3a3a', '#4a3a2a')], [('#f0c8a0', '#8a5a2a', '#a04a7a', '#5a3a6a'), ('#d09060', '#2a1a10', '#4a8a5a', '#3a4a3a')], {}),
@@ -647,52 +1169,9 @@ def entities():
         'render_controllers': ['controller.render.rpg.npc'],
         'spawn_egg': {'base_color': '#e0c080', 'overlay_color': '#3a6ea5'},
     }}})
-    lang['entity.rpg:npc.name'] = 'Habitante de Aetheria'
-    lang['item.spawn_egg.entity.rpg:npc.name'] = 'Generar Habitante'
-    lang['action.interact.rpg_talk'] = 'Hablar'
 
     # ---------------- Espíritu aliado ----------------
-    pg = {}
-    pe = {}
-    names = [f'rpg:power_{i}' for i in range(5)]
-    for i, n in enumerate(names):
-        hp = [20, 35, 55, 80, 120][i]
-        pg[n] = {'minecraft:health': {'value': hp, 'max': hp}, 'minecraft:attack': {'damage': [4, 7, 11, 16, 24][i]}}
-        pe[n] = {'remove': {'component_groups': [x for x in names if x != n]}, 'add': {'component_groups': [n]}}
-    pe['minecraft:entity_spawned'] = {'add': {'component_groups': ['rpg:power_0']}}
-    write(os.path.join(BP, 'entities', 'spirit.json'), {'format_version': '1.21.0', 'minecraft:entity': {
-        'description': {'identifier': 'rpg:spirit', 'is_spawnable': False, 'is_summonable': True, 'properties': {
-            'rpg:variant': {'type': 'int', 'range': [0, 11], 'default': 0, 'client_sync': True},
-        }},
-        'component_groups': pg,
-        'components': {
-            'minecraft:type_family': {'family': ['rpg_spirit', 'rpg_ally']},
-            'minecraft:health': {'value': 20, 'max': 20},
-            'minecraft:attack': {'damage': 4},
-            'minecraft:collision_box': {'width': 0.7, 'height': 1.2},
-            'minecraft:movement': {'value': 0.32},
-            'minecraft:movement.basic': {},
-            'minecraft:navigation.walk': {'can_path_over_water': True, 'avoid_water': False},
-            'minecraft:jump.static': {},
-            'minecraft:physics': {},
-            'minecraft:pushable': {'is_pushable': True, 'is_pushable_by_piston': True},
-            'minecraft:fire_immune': {},
-            'minecraft:nameable': {'always_show': False},
-            'minecraft:breathable': {'total_supply': 15, 'suffocate_time': 0, 'breathes_water': True},
-            'minecraft:damage_sensor': {'triggers': [
-                {'on_damage': {'filters': {'test': 'is_family', 'subject': 'other', 'value': 'player'}}, 'deals_damage': 'no'},
-                {'cause': 'fall', 'deals_damage': 'no'},
-                {'cause': 'suffocation', 'deals_damage': 'no'},
-            ]},
-            'minecraft:behavior.float': {'priority': 0},
-            'minecraft:behavior.melee_attack': {'priority': 2, 'speed_multiplier': 1.3, 'track_target': True},
-            'minecraft:behavior.nearest_attackable_target': {'priority': 1, 'must_see': False, 'reselect_targets': True, 'within_radius': 18, 'entity_types': [{'filters': {'test': 'is_family', 'subject': 'other', 'value': 'monster'}, 'max_dist': 18}]},
-            'minecraft:behavior.random_stroll': {'priority': 6, 'speed_multiplier': 0.8},
-            'minecraft:behavior.look_at_player': {'priority': 7, 'look_distance': 6},
-            'minecraft:conditional_bandwidth_optimization': {},
-        },
-        'events': pe,
-    }})
+    lang.update(spirit_json())
     sp_tex = {}
     for v, col in enumerate(ELEMENT_COLORS):
         name = f'spirit_{v}'
@@ -721,67 +1200,81 @@ def entities():
         },
         'render_controllers': ['controller.render.rpg.spirit'],
     }}})
-    lang['entity.rpg:spirit.name'] = 'Espíritu Elemental'
     return lang
 
 
 # ======================================================================================
 # Jugador (tamaño según raza y edad)
 # ======================================================================================
+def vanilla_player():
+    """minecraft:player tal cual la vanilla (Mojang/bedrock-samples, behavior_pack/entities/player.json de la
+    v1.26.10.4, idéntico en la v1.26.20.4; formato 1.26.0). La versión de la 1.26.30+ declara format_version
+    1.26.30, superior a nuestro min_engine_version 1.26.10, y solo añade los ajustes de retroceso del
+    «sulfur cube» (minecraft:apply_knockback_rules con campos de ese formato) y separa minecraft:pushable en
+    pushable_by_block; el motor actualiza este formato 1.26.0 al cargarlo. Al subir min_engine_version a
+    1.26.30 o más, copiar aquí la versión vanilla correspondiente."""
+    return {
+        'format_version': '1.26.0',
+        'minecraft:entity': {
+            'description': {'identifier': 'minecraft:player', 'is_summonable': False, 'is_spawnable': False, 'spawn_category': 'creature'},
+            'components': {
+                'minecraft:attack': {'damage': 1},
+                'minecraft:block_climber': {},
+                'minecraft:breathable': {'generates_bubbles': False, 'inhale_time': 3.75, 'suffocate_time': -1, 'total_supply': 15},
+                'minecraft:can_climb': {},
+                'minecraft:collision_box': {'height': 1.8, 'width': 0.6},
+                'minecraft:conditional_bandwidth_optimization': {},
+                'minecraft:environment_sensor': {'triggers': {'event': 'minecraft:gain_raid_omen', 'filters': {'all_of': [
+                    {'subject': 'self', 'test': 'has_mob_effect', 'value': 'bad_omen'},
+                    {'subject': 'self', 'test': 'is_in_village', 'value': True},
+                ]}}},
+                'minecraft:exhaustion_values': {'sprint': 0.1, 'jump': 0.05, 'attack': 0.1, 'damage': 0.1, 'heal': 6.0, 'lunge': 4.0,
+                                                'sprint_jump': 0.2, 'mine': 0.005, 'swim': 0.01, 'walk': 0.0},
+                'minecraft:experience_reward': {'on_death': {'expression': 'Math.Min(query.player_level * 7, 100)', 'version': 13}},
+                'minecraft:hurt_on_condition': {'damage_conditions': [{'cause': 'lava', 'damage_per_tick': 4, 'filters': {
+                    'operator': '==', 'test': 'in_lava', 'subject': 'self', 'value': True}}]},
+                'minecraft:insomnia': {'days_until_insomnia': 3},
+                'minecraft:is_hidden_when_invisible': {},
+                'minecraft:loot': {'table': 'loot_tables/empty.json'},
+                'minecraft:movement': {'value': 0.1},
+                'minecraft:nameable': {'allow_name_tag_renaming': False, 'always_show': True},
+                'minecraft:physics': {'push_towards_closest_space': True},
+                'minecraft:player.exhaustion': {'max': 20, 'value': 0},
+                'minecraft:player.experience': {'max': 1, 'value': 0},
+                'minecraft:player.level': {'max': 24791, 'value': 0},
+                'minecraft:player.saturation': {'max': 20, 'value': 5},
+                'minecraft:pushable': {'is_pushable': False, 'is_pushable_by_piston': True},
+                'minecraft:rideable': {'family_types': ['parrot_tame'], 'pull_in_entities': True, 'seat_count': 2, 'seats': [
+                    {'lock_rider_rotation': 0, 'min_rider_count': 0, 'max_rider_count': 0, 'position': [0.4, -0.2, -0.1]},
+                    {'lock_rider_rotation': 0, 'min_rider_count': 1, 'max_rider_count': 2, 'position': [-0.4, -0.2, -0.1]},
+                ]},
+                'minecraft:type_family': {'family': ['player']},
+            },
+            'component_groups': {
+                'minecraft:add_raid_omen': {
+                    'minecraft:spell_effects': {'add_effects': [{'display_on_screen_animation': True, 'duration': 30, 'effect': 'raid_omen'}], 'remove_effects': 'bad_omen'},
+                    'minecraft:timer': {'looping': False, 'time': [0.0, 0.0], 'time_down_event': {'event': 'minecraft:clear_add_raid_omen', 'target': 'self'}},
+                },
+                'minecraft:clear_raid_omen_spell_effect': {'minecraft:spell_effects': {}},
+                'minecraft:raid_trigger': {'minecraft:raid_trigger': {'triggered_event': {'event': 'minecraft:remove_raid_trigger', 'target': 'self'}}},
+            },
+            'events': {
+                'minecraft:clear_add_raid_omen': {'add': {'component_groups': ['minecraft:clear_raid_omen_spell_effect']}, 'remove': {'component_groups': ['minecraft:add_raid_omen']}},
+                'minecraft:remove_raid_trigger': {'remove': {'component_groups': ['minecraft:raid_trigger']}},
+                'minecraft:gain_raid_omen': {'add': {'component_groups': ['minecraft:add_raid_omen']}},
+                'minecraft:trigger_raid': {'add': {'component_groups': ['minecraft:raid_trigger']}},
+            },
+        },
+    }
+
+
 def player_json():
+    """F5: jugador = vanilla actual (para nuestro motor mínimo) + grupos/eventos rpg:scale_* (tamaño por raza y edad)."""
+    data = vanilla_player()
+    ent = data['minecraft:entity']
     sg, se = scale_groups()
-    groups = {
-        'minecraft:add_raid_omen': {
-            'minecraft:spell_effects': {'add_effects': [{'effect': 'raid_omen', 'duration': 30, 'display_on_screen_animation': True}], 'remove_effects': 'bad_omen'},
-            'minecraft:timer': {'time': [0.0, 0.0], 'looping': False, 'time_down_event': {'event': 'minecraft:clear_add_raid_omen', 'target': 'self'}},
-        },
-        'minecraft:clear_raid_omen_spell_effect': {'minecraft:spell_effects': {}},
-        'minecraft:raid_trigger': {'minecraft:raid_trigger': {'triggered_event': {'event': 'minecraft:remove_raid_trigger', 'target': 'self'}}},
-    }
-    groups.update(sg)
-    events = {
-        'minecraft:gain_raid_omen': {'add': {'component_groups': ['minecraft:add_raid_omen']}},
-        'minecraft:clear_add_raid_omen': {'remove': {'component_groups': ['minecraft:add_raid_omen']}, 'add': {'component_groups': ['minecraft:clear_raid_omen_spell_effect']}},
-        'minecraft:trigger_raid': {'add': {'component_groups': ['minecraft:raid_trigger']}},
-        'minecraft:remove_raid_trigger': {'remove': {'component_groups': ['minecraft:raid_trigger']}},
-    }
-    events.update(se)
-    data = {'format_version': '1.21.0', 'minecraft:entity': {
-        'description': {'identifier': 'minecraft:player', 'spawn_category': 'creature', 'is_spawnable': False, 'is_summonable': False},
-        'component_groups': groups,
-        'components': {
-            'minecraft:experience_reward': {'on_death': 'Math.Min(query.player_level * 7, 100)'},
-            'minecraft:type_family': {'family': ['player']},
-            'minecraft:is_hidden_when_invisible': {},
-            'minecraft:loot': {'table': 'loot_tables/empty.json'},
-            'minecraft:collision_box': {'width': 0.6, 'height': 1.8},
-            'minecraft:can_climb': {},
-            'minecraft:movement': {'value': 0.1},
-            'minecraft:hurt_on_condition': {'damage_conditions': [{'filters': {'test': 'in_lava', 'subject': 'self', 'operator': '==', 'value': True}, 'cause': 'lava', 'damage_per_tick': 4}]},
-            'minecraft:attack': {'damage': 1},
-            'minecraft:exhaustion_values': {'heal': 6, 'jump': 0.05, 'sprint_jump': 0.2, 'mine': 0.005, 'attack': 0.1, 'damage': 0.1, 'walk': 0.0, 'sprint': 0.1, 'swim': 0.01},
-            'minecraft:player.saturation': {'value': 5, 'max': 20},
-            'minecraft:player.exhaustion': {'value': 0, 'max': 20},
-            'minecraft:player.level': {'value': 0, 'max': 24791},
-            'minecraft:player.experience': {'value': 0, 'max': 1},
-            'minecraft:breathable': {'total_supply': 15, 'suffocate_time': -1, 'inhale_time': 3.75, 'generates_bubbles': False},
-            'minecraft:nameable': {'always_show': True, 'allow_name_tag_renaming': False},
-            'minecraft:physics': {'push_towards_closest_space': True},
-            'minecraft:pushable': {'is_pushable': False, 'is_pushable_by_piston': True},
-            'minecraft:insomnia': {'days_until_insomnia': 3},
-            'minecraft:rideable': {'seat_count': 2, 'family_types': ['parrot_tame'], 'pull_in_entities': True, 'seats': [
-                {'position': [0.4, -0.2, -0.1], 'min_rider_count': 0, 'max_rider_count': 0, 'lock_rider_rotation': 0},
-                {'position': [-0.4, -0.2, -0.1], 'min_rider_count': 1, 'max_rider_count': 2, 'lock_rider_rotation': 0},
-            ]},
-            'minecraft:conditional_bandwidth_optimization': {},
-            'minecraft:block_climber': {},
-            'minecraft:environment_sensor': {'triggers': [{'filters': {'all_of': [
-                {'test': 'has_mob_effect', 'subject': 'self', 'value': 'bad_omen'},
-                {'test': 'is_in_village', 'subject': 'self', 'value': True},
-            ]}, 'event': 'minecraft:gain_raid_omen'}]},
-        },
-        'events': events,
-    }}
+    ent['component_groups'].update(sg)
+    ent['events'].update(se)
     write(os.path.join(BP, 'entities', 'player.json'), data)
     write(os.path.join(BP, 'loot_tables', 'empty.json'), {'pools': []})
 
@@ -822,7 +1315,50 @@ ITEMS = [
     ('staff_apprentice', 'Báculo de Aprendiz', ('staff', '#a070ff', ''), dict(weapon=(4, 600, 'sword'), cooldown=0.2)),
     ('staff_archmage', 'Báculo del Archimago', ('staff', '#ffd040', ''), dict(weapon=(6, 1600, 'sword'), cooldown=0.2, glint=True)),
     ('wedding_ring', 'Anillo de Compromiso', ('ring', '#e8c040', '#80e0ff'), dict(stack=1, glint=True)),
+    # v2 (contrato §3): justicia, robos y clases sociales. Los que llevan cooldown disparan world.afterEvents.itemUse.
+    ('jail_key', 'Llave de la celda', ('key', '#c8a040', '#6a5020'), dict(stack=1, cooldown=0.5)),
+    ('tomato', 'Tomate', ('tomato', '#d8301c', '#3a8a2a'), dict(stack=16, tomato=True)),
+    ('lockpick', 'Ganzúa', ('lockpick', '#a8a8b4', '#6a4a2a'), dict(stack=16, cooldown=0.5)),
+    ('noble_title', 'Título nobiliario', ('scroll', '#b01828', '#e8c040'), dict(stack=1, glint=True, cooldown=0.5)),
+    ('wanted_poster', 'Cartel de Se Busca', ('poster', '#c8a870', '#e03020'), dict(stack=16, cooldown=0.5)),
 ]
+# Si gen_textures no sabe dibujar un tipo de icono, se usa este (el build nunca se rompe por un icono).
+ICON_FALLBACK = {'key': 'ring', 'tomato': 'core', 'lockpick': 'staff', 'scroll': 'card', 'poster': 'card'}
+
+
+def _png_blank(path):
+    try:
+        from PIL import Image
+        with Image.open(path) as im:
+            return im.convert('RGBA').getbbox() is None
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def item_icon_safe(path, kind, color, accent, seed):
+    """Dibuja el icono con gen_textures.item_icon; si el tipo aún no existe allí (icono vacío o error),
+    usa un tipo parecido y, como último recurso, un cuadrado de color. Nunca rompe el build."""
+    for k in (kind, ICON_FALLBACK.get(kind), 'core'):
+        if not k:
+            continue
+        try:
+            T.item_icon(path, k, color, accent, seed)
+            if not _png_blank(path):
+                if k != kind:
+                    print(f'Aviso: icono "{kind}" no disponible en gen_textures; se usa "{k}" para {os.path.basename(path)}.')
+                return
+        except Exception as err:  # noqa: BLE001
+            print(f'Aviso: gen_textures.item_icon({k!r}) falló: {err}')
+    try:
+        from PIL import Image
+        img = Image.new('RGBA', (16, 16), (0, 0, 0, 0))
+        rgb = tuple(int(color.lstrip('#')[i:i + 2], 16) for i in (0, 2, 4))
+        for x in range(3, 13):
+            for y in range(3, 13):
+                img.putpixel((x, y), rgb + (255,))
+        img.save(path)
+    except Exception as err:  # noqa: BLE001
+        print(f'Aviso: no se pudo crear el icono {path}: {err}')
 
 
 def items():
@@ -854,13 +1390,21 @@ def items():
                 comps['minecraft:tags'] = {'tags': ['minecraft:is_sword']}
             else:
                 comps['minecraft:tags'] = {'tags': ['minecraft:is_axe']}
+        if ex.get('tomato'):
+            # Comida (2) y arrojadizo: lanza la entidad rpg:tomato (proyectil sin daño, contrato §2.4).
+            comps['minecraft:food'] = {'nutrition': 2, 'saturation_modifier': 0.3}
+            comps['minecraft:use_animation'] = 'eat'
+            comps['minecraft:use_modifiers'] = {'use_duration': 1.6, 'movement_modifier': 0.35}
+            comps['minecraft:tags'] = {'tags': ['minecraft:is_food']}
+            comps['minecraft:throwable'] = {'do_swing_animation': True, 'launch_power_scale': 1.0, 'max_launch_power': 1.0}
+            comps['minecraft:projectile'] = {'projectile_entity': 'rpg:tomato'}
         cat = 'equipment' if ex.get('weapon') else 'items'
-        write(os.path.join(BP, 'items', f'{key}.json'), {'format_version': '1.21.40', 'minecraft:item': {
+        write(os.path.join(BP, 'items', f'{key}.json'), {'format_version': FMT_ITEM, 'minecraft:item': {
             'description': {'identifier': ident, 'menu_category': {'category': cat}}, 'components': comps}})
-        T.item_icon(png(os.path.join(RP, 'textures', 'items', f'rpg_{key}.png')), kind, color, accent or '#ffffff', zlib.crc32(key.encode()) % 1000)
+        item_icon_safe(png(os.path.join(RP, 'textures', 'items', f'rpg_{key}.png')), kind, color, accent or '#ffffff', zlib.crc32(key.encode()) % 1000)
         tex[f'rpg_{key}'] = {'textures': f'textures/items/rpg_{key}'}
     write(os.path.join(RP, 'textures', 'item_texture.json'), {'resource_pack_name': 'aetheria_rpg', 'texture_name': 'atlas.items', 'texture_data': tex})
-    return {f'item.rpg:{k}': n for k, n, _, _ in ITEMS}
+    return {f'item.rpg:{k}.name': n for k, n, _, _ in ITEMS}
 
 
 # ======================================================================================
@@ -871,6 +1415,15 @@ BLOCKS = [
     ('adamantite_ore', 'Mena de Adamantita', 'ore', '#c03050', 'rpg:raw_adamantite', 6.0, 0),
     ('mana_crystal_block', 'Cristal de Maná', 'crystal', '#a070ff', 'rpg:mana_crystal_shard', 2.0, 9),
 ]
+# BLK-1: etiquetas de bloque para que los picos (vanilla y de otros add-ons) los minen a su velocidad.
+# Con format_version 1.21.40 las etiquetas se declaran como componentes «tag:<nombre>» (el componente
+# minecraft:tags exige el formato 1.26.20, por encima de nuestro motor mínimo 1.26.10). 'stone' mantiene
+# compatibilidad con los picos de formato antiguo; las de nivel indican el pico mínimo recomendado.
+BLOCK_TAGS = {
+    'mithril_ore': ['minecraft:is_pickaxe_item_destructible', 'minecraft:iron_tier_destructible', 'stone'],
+    'adamantite_ore': ['minecraft:is_pickaxe_item_destructible', 'minecraft:diamond_tier_destructible', 'stone'],
+    'mana_crystal_block': ['minecraft:is_pickaxe_item_destructible', 'stone'],
+}
 
 
 def blocks():
@@ -889,7 +1442,9 @@ def blocks():
         }
         if light:
             comps['minecraft:light_emission'] = light
-        write(os.path.join(BP, 'blocks', f'{key}.json'), {'format_version': '1.21.40', 'minecraft:block': {
+        for tag in BLOCK_TAGS.get(key, []):
+            comps[f'tag:{tag}'] = {}
+        write(os.path.join(BP, 'blocks', f'{key}.json'), {'format_version': FMT_BLOCK, 'minecraft:block': {
             'description': {'identifier': ident, 'menu_category': {'category': 'nature'}}, 'components': comps}})
         count = {'min': 1, 'max': 1} if kind == 'ore' else {'min': 2, 'max': 4}
         write(os.path.join(BP, 'loot_tables', 'blocks', f'{key}.json'), {'pools': [{'rolls': 1, 'entries': [{'type': 'item', 'name': drop, 'weight': 1, 'functions': [{'function': 'set_count', 'count': count}]}]}]})
@@ -996,6 +1551,9 @@ def recipes():
     shapeless('journal', [('minecraft:book', 1), ('minecraft:feather', 1)], 'rpg:journal')
     shapeless('mana_potion', [('minecraft:glass_bottle', 1), ('rpg:mana_crystal_shard', 1)], 'rpg:mana_potion')
     shapeless('seal_goblin_king', [('rpg:monster_core', 4), ('minecraft:gold_ingot', 1)], 'rpg:seal_goblin_king')
+    # v2: ganzúas (dos pepitas de hierro y un palo dan dos) y tomates de huerta (a partir de remolachas).
+    shaped('lockpick', ['N', 'N', 'S'], {'N': 'minecraft:iron_nugget', 'S': 'minecraft:stick'}, 'rpg:lockpick', 2)
+    shapeless('tomato', [('minecraft:beetroot', 2)], 'rpg:tomato')
 
 
 # ======================================================================================
@@ -1121,16 +1679,28 @@ def main():
     recipes()
     particles()
     # Recursos visuales v2 (modelos, texturas, partículas, glifos): sobrescriben los anteriores.
+    rp_ok = True
     try:
         import rp_models  # noqa: WPS433
     except ImportError:
         rp_models = None
-    if rp_models is not None:
-        lang.update(rp_models.build(RP) or {})
+    build_rp = getattr(rp_models, 'build', None) if rp_models is not None else None
+    if rp_models is not None and not callable(build_rp):
+        print('Aviso: tools/rp_models.py no define build(RP); se mantienen los recursos visuales heredados.')
+    elif build_rp is not None:
+        try:
+            lang.update(build_rp(RP) or {})
+        except Exception:  # noqa: BLE001 - se informa y el build termina con error al final
+            import traceback
+            traceback.print_exc()
+            print('ERROR: rp_models.build(RP) ha fallado; el paquete de recursos puede estar incompleto.')
+            rp_ok = False
     texts(lang)
     if '--no-zip' not in sys.argv:
         package()
     print('Recursos generados en packs/.')
+    if not rp_ok:
+        sys.exit(1)
 
 
 if __name__ == '__main__':

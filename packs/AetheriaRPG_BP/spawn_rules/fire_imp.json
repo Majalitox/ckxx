@@ -24,7 +24,29 @@
               "test": "has_biome_tag",
               "operator": "==",
               "value": "nether"
-            },
+            }
+          ]
+        },
+        "minecraft:spawns_underground": {},
+        "minecraft:spawns_on_block_prevented_filter": [
+          "minecraft:nether_wart_block",
+          "minecraft:shroomlight"
+        ]
+      },
+      {
+        "minecraft:weight": {
+          "default": 20
+        },
+        "minecraft:herd": {
+          "min_size": 1,
+          "max_size": 3
+        },
+        "minecraft:difficulty_filter": {
+          "min": "easy",
+          "max": "hard"
+        },
+        "minecraft:biome_filter": {
+          "any_of": [
             {
               "test": "has_biome_tag",
               "operator": "==",

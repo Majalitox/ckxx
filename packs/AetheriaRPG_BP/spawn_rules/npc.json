@@ -3,7 +3,7 @@
   "minecraft:spawn_rules": {
     "description": {
       "identifier": "rpg:npc",
-      "population_control": "creature"
+      "population_control": "animal"
     },
     "conditions": [
       {

@@ -65,8 +65,8 @@
         ]
       },
       "minecraft:collision_box": {
-        "width": 0.8,
-        "height": 2.6
+        "width": 0.5714,
+        "height": 1.8571
       },
       "minecraft:scale": {
         "value": 1.4
@@ -85,7 +85,8 @@
       "minecraft:navigation.walk": {
         "can_path_over_water": true,
         "avoid_water": true,
-        "can_open_doors": false
+        "can_open_doors": false,
+        "avoid_damage_blocks": true
       },
       "minecraft:jump.static": {},
       "minecraft:can_climb": {},
@@ -100,7 +101,8 @@
       },
       "minecraft:nameable": {},
       "minecraft:follow_range": {
-        "value": 48
+        "value": 48,
+        "max": 64
       },
       "minecraft:loot": {
         "table": "loot_tables/entities/rpg_lich.json"
@@ -112,7 +114,22 @@
         "priority": 0
       },
       "minecraft:behavior.hurt_by_target": {
-        "priority": 1
+        "priority": 1,
+        "alert_same_type": false,
+        "entity_types": [
+          {
+            "filters": {
+              "none_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "monster"
+                }
+              ]
+            },
+            "max_dist": 32
+          }
+        ]
       },
       "minecraft:behavior.nearest_attackable_target": {
         "priority": 2,
@@ -137,6 +154,11 @@
                   "test": "is_family",
                   "subject": "other",
                   "value": "villager"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_guard"
                 }
               ]
             },
@@ -168,7 +190,7 @@
       },
       "minecraft:persistent": {},
       "minecraft:knockback_resistance": {
-        "value": 0.8
+        "value": 0.9
       },
       "minecraft:damage_sensor": {
         "triggers": [

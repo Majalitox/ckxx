@@ -64,8 +64,8 @@
         ]
       },
       "minecraft:collision_box": {
-        "width": 3.5,
-        "height": 2.2
+        "width": 1.1667,
+        "height": 0.7333
       },
       "minecraft:scale": {
         "value": 3.0
@@ -96,7 +96,8 @@
       },
       "minecraft:nameable": {},
       "minecraft:follow_range": {
-        "value": 48
+        "value": 48,
+        "max": 64
       },
       "minecraft:loot": {
         "table": "loot_tables/entities/rpg_spider_queen.json"
@@ -108,7 +109,22 @@
         "priority": 0
       },
       "minecraft:behavior.hurt_by_target": {
-        "priority": 1
+        "priority": 1,
+        "alert_same_type": false,
+        "entity_types": [
+          {
+            "filters": {
+              "none_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "monster"
+                }
+              ]
+            },
+            "max_dist": 32
+          }
+        ]
       },
       "minecraft:behavior.nearest_attackable_target": {
         "priority": 2,
@@ -133,6 +149,11 @@
                   "test": "is_family",
                   "subject": "other",
                   "value": "villager"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_guard"
                 }
               ]
             },
@@ -164,7 +185,7 @@
       },
       "minecraft:persistent": {},
       "minecraft:knockback_resistance": {
-        "value": 0.8
+        "value": 0.9
       },
       "minecraft:damage_sensor": {
         "triggers": [
@@ -183,7 +204,8 @@
         ]
       },
       "minecraft:navigation.climb": {
-        "can_path_over_water": true
+        "can_path_over_water": true,
+        "avoid_damage_blocks": true
       }
     },
     "events": {

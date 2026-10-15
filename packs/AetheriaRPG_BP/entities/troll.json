@@ -4,7 +4,14 @@
     "description": {
       "identifier": "rpg:troll",
       "is_spawnable": true,
-      "is_summonable": true
+      "is_summonable": true,
+      "properties": {
+        "rpg:sunlit": {
+          "type": "bool",
+          "default": false,
+          "client_sync": false
+        }
+      }
     },
     "component_groups": {
       "rpg:tier_0": {
@@ -51,6 +58,11 @@
         "minecraft:attack": {
           "damage": 31.2
         }
+      },
+      "rpg:sunlit": {
+        "minecraft:movement": {
+          "value": 0.144
+        }
       }
     },
     "components": {
@@ -63,8 +75,8 @@
         ]
       },
       "minecraft:collision_box": {
-        "width": 1.1,
-        "height": 3.3
+        "width": 0.6111,
+        "height": 1.8333
       },
       "minecraft:scale": {
         "value": 1.8
@@ -83,7 +95,8 @@
       "minecraft:navigation.walk": {
         "can_path_over_water": true,
         "avoid_water": true,
-        "can_open_doors": false
+        "can_open_doors": false,
+        "avoid_damage_blocks": true
       },
       "minecraft:jump.static": {},
       "minecraft:can_climb": {},
@@ -98,7 +111,8 @@
       },
       "minecraft:nameable": {},
       "minecraft:follow_range": {
-        "value": 32
+        "value": 32,
+        "max": 40
       },
       "minecraft:loot": {
         "table": "loot_tables/entities/rpg_troll.json"
@@ -110,7 +124,22 @@
         "priority": 0
       },
       "minecraft:behavior.hurt_by_target": {
-        "priority": 1
+        "priority": 1,
+        "alert_same_type": false,
+        "entity_types": [
+          {
+            "filters": {
+              "none_of": [
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "monster"
+                }
+              ]
+            },
+            "max_dist": 32
+          }
+        ]
       },
       "minecraft:behavior.nearest_attackable_target": {
         "priority": 2,
@@ -135,6 +164,11 @@
                   "test": "is_family",
                   "subject": "other",
                   "value": "villager"
+                },
+                {
+                  "test": "is_family",
+                  "subject": "other",
+                  "value": "rpg_guard"
                 }
               ]
             },
@@ -158,6 +192,65 @@
         "priority": 3,
         "speed_multiplier": 1.25,
         "track_target": true
+      },
+      "minecraft:environment_sensor": {
+        "triggers": [
+          {
+            "filters": {
+              "all_of": [
+                {
+                  "test": "is_daytime",
+                  "subject": "self",
+                  "value": true
+                },
+                {
+                  "test": "is_underground",
+                  "subject": "self",
+                  "value": false
+                },
+                {
+                  "test": "bool_property",
+                  "subject": "self",
+                  "domain": "rpg:sunlit",
+                  "operator": "==",
+                  "value": false
+                }
+              ]
+            },
+            "event": "rpg:sun_on"
+          },
+          {
+            "filters": {
+              "all_of": [
+                {
+                  "test": "bool_property",
+                  "subject": "self",
+                  "domain": "rpg:sunlit",
+                  "operator": "==",
+                  "value": true
+                },
+                {
+                  "any_of": [
+                    {
+                      "test": "is_daytime",
+                      "subject": "self",
+                      "value": false
+                    },
+                    {
+                      "test": "is_underground",
+                      "subject": "self",
+                      "value": true
+                    }
+                  ]
+                }
+              ]
+            },
+            "event": "rpg:sun_off"
+          }
+        ]
+      },
+      "minecraft:knockback_resistance": {
+        "value": 0.6
       },
       "minecraft:spell_effects": {
         "add_effects": [
@@ -253,6 +346,26 @@
         "add": {
           "component_groups": [
             "rpg:tier_4"
+          ]
+        }
+      },
+      "rpg:sun_on": {
+        "set_property": {
+          "rpg:sunlit": true
+        },
+        "add": {
+          "component_groups": [
+            "rpg:sunlit"
+          ]
+        }
+      },
+      "rpg:sun_off": {
+        "set_property": {
+          "rpg:sunlit": false
+        },
+        "remove": {
+          "component_groups": [
+            "rpg:sunlit"
           ]
         }
       }
