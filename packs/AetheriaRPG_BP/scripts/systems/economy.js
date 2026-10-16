@@ -291,15 +291,47 @@ async function haggleRound(player, ident, d, v, ask, round, mode) {
   return { offer: o };
 }
 
+// Trato cerrado pendiente de pago: la experiencia de comercio, el ahorro y la relación con el mercader solo se
+// apuntan cuando el trato se cumple de verdad (commitHaggle tras pagar o entregar la mercancía).
+const pendingDeals = new Map(); // pid -> { ident, deal, saved, fair, base, t }
+
+/**
+ * Cumple el último trato regateado por el jugador (llámalo después de cobrar o de retirar la mercancía).
+ * Devuelve true si había un trato pendiente.
+ */
+export function commitHaggle(player) {
+  let pid;
+  try { pid = player.id; } catch { return false; }
+  const p = pendingDeals.get(pid);
+  if (!p) return false;
+  pendingDeals.delete(pid);
+  if (system.currentTick - p.t > 20 * 600) return false; // trato olvidado hace más de 10 min
+  const d = getP(player);
+  if (!d) return false;
+  const t = socialOf(d).trade;
+  t.saved = (t.saved ?? 0) + Math.max(0, p.saved);
+  bumpRel(player, d, p.ident, p.fair ? 2 : 0);
+  addTradeXp(player, Math.max(2, Math.round((Math.max(0, p.saved) / p.base) * 40) + 2));
+  dirty(player);
+  return true;
+}
+
+/** Olvida el trato pendiente (no se pagó). */
+export function dropHaggle(player) {
+  try { pendingDeals.delete(player.id); } catch {}
+}
+
 /**
  * Regatear con un mercader. mode 'buy' (tú compras) o 'sell' (tú vendes).
  * opts: { item: nombre de la mercancía, wallet: oro máximo que puede pagar el mercader (al vender) }.
- * Devuelve el precio acordado o undefined si no hay trato (contrato §6.4).
+ * Devuelve el precio acordado o undefined si no hay trato (contrato §6.4). No apunta nada por sí solo:
+ * quien cobra llama a commitHaggle(player) cuando el trato se ha cumplido.
  */
 export async function haggle(player, merchantIdent, basePrice, mode = 'buy', opts = {}) {
   const d = getP(player);
   const ident = merchantIdent;
   if (!d || !ident || !(basePrice > 0)) return undefined;
+  try { pendingDeals.delete(player.id); } catch {}
   const so = socialOf(d);
   const today = world.getDay();
   so.hban = so.hban ?? {};
@@ -374,13 +406,11 @@ export async function haggle(player, merchantIdent, basePrice, mode = 'buy', opt
     v.line = say(ident, d, pick(sell ? HAGGLE.counter_sell : HAGGLE.counter), v);
   }
   if (deal === undefined) return undefined;
-  // Trato cerrado
+  // Trato cerrado (se apunta al pagar: commitHaggle).
   const saved = sell ? deal - base : base - deal;
-  const t = so.trade;
-  t.saved = (t.saved ?? 0) + Math.max(0, saved);
   const fair = sell ? deal <= base * (1 + flex * 0.6) : deal >= base * (1 - flex * 0.6);
-  bumpRel(player, d, ident, fair ? 2 : 0);
-  addTradeXp(player, Math.max(2, Math.round((Math.max(0, saved) / base) * 40) + 2));
+  pendingDeals.set(player.id, { ident, deal, saved, fair, base, t: system.currentTick });
+  if (pendingDeals.size > 200) pendingDeals.clear();
   const happy = fair && Math.random() < 0.5;
   msg(player, `§e[${ident.name}] §f${say(ident, d, pick(happy ? HAGGLE.accept_happy : HAGGLE.accept), v)} §7(${deal} oro${saved > 0 ? `, §a${saved} ${sell ? 'más' : 'menos'}§7` : ''})`);
   psound(player, 'random.orb', 0.7, 1.4);

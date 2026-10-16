@@ -26,6 +26,8 @@ export function ensureStarterVillage(player) { return T.setupGuildTown ? T.setup
 let slot = 0;
 export function nextHouseSpot() { const t = W().town; slot++; return { x: (t?.center?.x ?? 0) - 30 - slot * 12, z: (t?.center?.z ?? 0) - 30 }; }
 export function settlementTick() {}
+export const _released = [];
+export function releaseResident(sid, fid) { _released.push(sid + ':' + fid); return true; }
 `;
 const target = './scripts/systems/settlements.js';
 if (!(process.env.REAL_SETTLEMENTS === '1' && fs.existsSync(target))) fs.writeFileSync(target, STUB);
@@ -393,10 +395,15 @@ await advance(4);
   q(['', true]);
   const a = await economy.haggle(p, mi, 100, 'buy', { item: 'una espada' });
   check('regateo: aceptar el precio', a === 100, String(a));
+  const xp0 = d.social.trade.xp ?? 0;
+  const saved0 = d.social.trade.saved ?? 0;
   q(['60'], ['72'], true);
   const b = await economy.haggle(p, mi, 100, 'buy', { item: 'una espada' });
   check('regateo: contraoferta y trato final más barato', typeof b === 'number' && b < 100 && b >= 62, String(b));
-  check('regateo: sube la habilidad de comercio', (d.social.trade.xp ?? 0) > 0 || (d.social.trade.lvl ?? 1) > 1);
+  // LIFE-5: el trato no apunta nada hasta que se paga.
+  check('regateo: sin pagar no da experiencia ni ahorro', (d.social.trade.xp ?? 0) === xp0 && (d.social.trade.saved ?? 0) === saved0);
+  check('regateo: al pagar sube la habilidad de comercio', economy.commitHaggle(p) && ((d.social.trade.xp ?? 0) > xp0 || (d.social.trade.lvl ?? 1) > 1) && (d.social.trade.saved ?? 0) > saved0);
+  check('regateo: el trato solo se apunta una vez', !economy.commitHaggle(p));
   q(['95']);
   const c = await economy.haggle(p, mi, 100, 'buy', { item: 'algo' });
   check('regateo: oferta razonable aceptada', c === 95, String(c));
@@ -434,6 +441,21 @@ await advance(4);
   q('Comprar', 0, 'Regatear', ['', true], undefined, undefined);
   await shop.shopMenu(p, { entity: merchant, ident: mi });
   check('tienda: compra tras regatear', d.gold < goldBefore && p._inv.slots.some((s) => s?.typeId === 'minecraft:bread'), `${goldBefore} -> ${d.gold}`);
+  // LIFE-5: regatear algo que no puedes pagar no da experiencia, ahorro ni relación.
+  {
+    const t = d.social.trade;
+    const before = JSON.stringify([t.xp ?? 0, t.lvl ?? 1, t.saved ?? 0, d.rel[mi.id]?.p ?? 0]);
+    const gold0 = d.gold;
+    d.gold = 0;
+    d.social.hban = {};
+    ui.shown.length = 0;
+    q('Comprar', 0, 'Regatear', ['', true], undefined, undefined, undefined);
+    await shop.shopMenu(p, { entity: merchant, ident: identOf(merchant) });
+    const after = JSON.stringify([t.xp ?? 0, t.lvl ?? 1, t.saved ?? 0, d.rel[mi.id]?.p ?? 0]);
+    const refused = ui.shown.some((f) => /No tienes suficiente oro/.test(f.body ?? ''));
+    check('tienda: regatear sin oro no da experiencia, ahorro ni relación', refused && after === before && d.gold === 0, `${before} -> ${after}`);
+    d.gold = gold0;
+  }
   p._inv.setItem(5, new ItemStack('minecraft:diamond', 5));
   const g2 = d.gold;
   q('Vender', 'diamond', 'Vender por', undefined, undefined);
@@ -731,6 +753,132 @@ await advance(4);
   nd.hud = false;
   passives.passiveTick(nb, nd);
   check('recuperación tras salir a mitad de la escena', !nb.hasTag('rpg_cinematic') && nb.inputPermissions._perms[2] === true && nd.hud === undefined);
+}
+
+/* ================= Correcciones de la revisión (LIFE-2..8, INT-6) ================= */
+{
+  world.setTimeOfDay(3000);
+  chat.setKnownWeather('Clear');
+  p.teleport({ x: 2.5, y: 65, z: 2.5 });
+  await advance(5);
+  // LIFE-2: un testigo que da la alarma en mitad de un bocadillo no pierde su oficio ni su raza.
+  const ALERT = '§c§l(!)§r\n';
+  const wit = spawn({ job: 'granjero', name: 'Testigo', gender: 'm' }, { x: 44, y: 65, z: -10 });
+  await advance(3);
+  const orig = wit.nameTag;
+  life.say(wit, 'Hace buen día', 10);
+  wit.nameTag = ALERT + wit.nameTag; // lo que hacía crime.startAlarm sin borrar antes el bocadillo
+  wit.addTag('rpg_busy'); wit.addTag('rpg_alarm');
+  await advance(25);
+  check('LIFE-2: se quita el bocadillo y se respeta el "(!)"', wit.nameTag === ALERT + orig, wit.nameTag);
+  wit.nameTag = wit.nameTag.slice(ALERT.length); wit.removeTag('rpg_busy'); wit.removeTag('rpg_alarm'); // resetWitness
+  await advance(25);
+  check('LIFE-2: el testigo conserva su oficio y raza al soltarlo', wit.nameTag === orig, `${orig} -> ${wit.nameTag}`);
+  life.say(wit, 'Otra vez', 10);
+  wit.nameTag = ALERT + wit.nameTag; wit.addTag('rpg_busy');
+  life._t.bubbles.delete(wit.id); // recarga de los scripts a mitad
+  await advance(25);
+  wit.nameTag = wit.nameTag.slice(ALERT.length); wit.removeTag('rpg_busy');
+  await advance(25);
+  check('LIFE-2: tras una recarga se restaura el nombre guardado', wit.nameTag === orig && wit.getDynamicProperty('rpg:nt') === undefined, wit.nameTag);
+  life.say(wit, 'Y otra', 10);
+  life.clearBubble(wit); // crime.startAlarm lo llama antes de leer el nombre
+  check('LIFE-2: clearBubble restaura el nombre al momento', wit.nameTag === orig && wit.getDynamicProperty('rpg:nt') === undefined);
+  wit.remove();
+
+  // LIFE-3: la lluvia solo mueve a la gente del pueblo.
+  const rain = { time: 3000, day: 0, now: 0, weather: 'Rain', kinds: undefined };
+  check('LIFE-3: con lluvia el rey sigue en su trono', life.activityFor(identOf(king), rain) === 'idle', life.activityFor(identOf(king), rain));
+  check('LIFE-3: con lluvia la familia del jugador sigue en casa', life.activityFor(identOf(fam), rain) === 'idle');
+  const famChild = npc.makeIdentity({ role: 'hermano', age: 'child', owner: p.id, ownerName: 'Ana' });
+  check('LIFE-3: los hermanos pequeños tampoco salen', life.activityFor(famChild, rain) === 'idle');
+  let toTavern = 0;
+  for (let i = 0; i < 24; i++) {
+    const ci = npc.makeIdentity({ job: 'aldeano', age: 'child', settlement: 's1', realm: 'r1' });
+    for (const tm of [0, 2000, 7000, 23600]) if (life.activityFor(ci, { ...rain, time: tm }) === 'tavern') toTavern++;
+  }
+  check('LIFE-3: los niños del pueblo nunca van a la taberna por la lluvia', toTavern === 0, String(toTavern));
+  const spouseI = { ...identOf(farmer), spouseId: p.id, spouseOf: 'Ana' };
+  delete spouseI.settlement; delete spouseI.realm;
+  check('LIFE-3: la pareja del jugador sigue el ritmo de la casa', life.profileOf(spouseI) === 'family' && life.activityFor(spouseI, rain) === 'idle');
+  check('LIFE-3: el granjero del pueblo sí se resguarda', ['tavern', 'home'].includes(life.activityFor(identOf(farmer), { ...rain, time: 2000 })));
+
+  // LIFE-4: casarse con una vecina la saca del censo del pueblo (no se repone un clon) y del asentamiento.
+  const Smod = await import('./scripts/systems/settlements.js');
+  const suitor = spawn({ job: 'mercader', name: 'Rosa', gender: 'f' }, { x: 5, y: 65, z: 6 });
+  await advance(3);
+  const si = identOf(suitor);
+  d.spouse = undefined;
+  d.rel[si.id] = { n: si.name, r: si.role, p: 800, t: 0, race: si.race, pers: si.pers, g: si.gender };
+  p._inv.slots.fill(undefined);
+  p._inv.setItem(p.selectedSlotIndex ?? 0, new ItemStack('rpg:wedding_ring', 1));
+  q('Proponer matrimonio', true, undefined);
+  world.beforeEvents.playerInteractWithEntity.fire({ player: p, target: suitor, cancel: false });
+  await advance(10);
+  const wed = ow.getEntities({ type: 'rpg:npc' }).filter((e) => e.hasTag('rpg_fid_' + si.id));
+  const wi = wed[0] ? identOf(wed[0]) : undefined;
+  check('LIFE-4: la pareja se muda (una sola vez)', d.spouse === si.id && wed.length === 1 && wi?.spouseId === p.id, `${wed.length}`);
+  check('LIFE-4: sin asentamiento ni reino en su identidad', wi && wi.settlement === undefined && wi.realm === undefined);
+  if (Smod._released) check('LIFE-4: sale del censo del asentamiento', Smod._released.includes('s1:' + si.id), Smod._released.join(','));
+  for (const e of wed) e.remove();
+  d.spouse = undefined;
+
+  // LIFE-6: género correcto y rumores en tercera persona.
+  const gf = (t) => chat.genderize(t, 'f', 'm');
+  check('LIFE-6: "un/a" y "buen/a" en femenino', gf('Eres un/a pordiosero/a.') === 'Eres una pordiosera.' && gf('Buen/a señor/a') === 'Buena señora'
+    && gf('¡Eres un/a crío/a!') === '¡Eres una cría!' && gf('Un/a caballero/a de verdad.') === 'Una dama de verdad.');
+  check('LIFE-6: y en masculino', chat.genderize('Eres un/a pordiosero/a. Buen/a señor/a. Un/a caballero/a.', 'm', 'm') === 'Eres un pordiosero. Buen señor. Un caballero.');
+  const deeds0 = d.social.deeds.slice();
+  d.social.deeds.unshift({ id: 'rx', text: 'Cometiste hurto en Villarroble', fame: -15 });
+  const rumors = new Set();
+  for (let i = 0; i < 40; i++) rumors.add(life._t.playerRumor(d, social.placeOf(p)));
+  check('LIFE-6: los NPCs cuentan tus fechorías en tercera persona', rumors.has('Dicen que cometió hurto en Villarroble.') && ![...rumors].some((r) => /cometiste/i.test(r)), [...rumors].join(' | '));
+  check('LIFE-6: tercera persona de las hazañas', social.thirdPerson('Te fugaste de la prisión de X') === 'se fugó de la prisión de X' && social.thirdPerson('Fuiste castigada públicamente') === 'fue castigada públicamente');
+  d.social.deeds = deeds0;
+
+  // LIFE-7: llevar el documento del título no ennoblece.
+  const [pt, dt] = mkPlayer('Portador', { social: { birth: 'media' } });
+  pt._inv.setItem(0, new ItemStack('rpg:noble_title', 1));
+  dt.social.titleItem = true; // marca de una partida anterior
+  social.classTick(pt, dt);
+  check('LIFE-7: el documento del título no te hace noble', social.playerClass(dt).rank < 5 && dt.social.titleItem === undefined, String(social.playerClass(dt).rank));
+  pt.remove();
+
+  // LIFE-8: el cartel rojo de "Ladrón" dura solo el día en que lo desenmascaran.
+  const lt = spawn({ job: 'ladron', name: 'Garfio', gender: 'm' }, { x: 46, y: 65, z: -14 });
+  await advance(3);
+  const disguised = lt.nameTag;
+  const li = identOf(lt);
+  li.exposed = world.getDay() - 1;
+  lt.setDynamicProperty('rpg:npc', JSON.stringify(li));
+  lt.nameTag = economy.exposedName(disguised, li);
+  life._t.identCache.delete(lt.id);
+  await advance(25);
+  check('LIFE-8: el ladrón desenmascarado ayer vuelve a su disfraz', lt.nameTag === disguised && identOf(lt).exposed === undefined, lt.nameTag);
+  const li2 = identOf(lt);
+  li2.exposed = world.getDay();
+  lt.setDynamicProperty('rpg:npc', JSON.stringify(li2));
+  const red = economy.exposedName(disguised, li2);
+  lt.nameTag = red;
+  life._t.identCache.delete(lt.id);
+  await advance(25);
+  check('LIFE-8: el mismo día sigue desenmascarado', lt.nameTag === red && red.includes('Ladrón'), lt.nameTag);
+  lt.remove();
+
+  // INT-6: las penas que cuentan los NPCs son las configuradas por el administrador.
+  const set0 = store.W().settings;
+  store.W().settings = { ...(set0 ?? {}), humiliationSeconds: 90, jailMinutesSerious: 20, jailMinutesMurder: 45 };
+  check('INT-6: penas vigentes en el chat', chat.lawValue('humiliationSeconds') === 90 && chat.lawValue('jailMinutesSerious') === 20 && chat.lawValue('jailMinutesMurder') === 45);
+  const g = spawn({ job: 'guardia', name: 'Ley', gender: 'm' }, { x: 3, y: 65, z: 3 });
+  await advance(3);
+  ui.shown.length = 0;
+  q('Preguntar por la ley', undefined, undefined);
+  world.beforeEvents.playerInteractWithEntity.fire({ player: p, target: g, cancel: false });
+  await advance(10);
+  const lawForm = ui.shown.find((f) => /La ley de/.test(f.title ?? ''));
+  check('INT-6: el guardia explica las penas configuradas', /90 s/.test(lawForm?.body ?? '') && /20 minutos/.test(lawForm?.body ?? '') && /45 minutos/.test(lawForm?.body ?? ''), lawForm?.body?.slice(0, 300));
+  g.remove();
+  store.W().settings = set0;
 }
 
 for (const pl of world.getAllPlayers()) for (const m of pl._msgs ?? []) lintText(m, 'mensaje a ' + pl.name);

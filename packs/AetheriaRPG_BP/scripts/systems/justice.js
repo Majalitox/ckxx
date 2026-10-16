@@ -35,6 +35,8 @@ const touch = new Map(); // pid -> ticks junto a un guardia
 const lastNote = new Map(); // pid -> tick (mensajes de restricción)
 const npcReact = new Map(); // npcId -> tick
 let fastN = 0;
+let ready = false; // ya corre secondTick (mundo cargado): se puede leer W() y limpiar NPCs
+let sweepIn = 3; // segundos hasta la próxima limpieza de NPCs huérfanos
 
 /* ------------------------------------------------------------------ */
 /* Utilidades                                                          */
@@ -84,11 +86,10 @@ function blockCenter(p) {
   return { x: p.x + 0.5, y: p.y + 0.5, z: p.z + 0.5 };
 }
 
+/** Devuelve el guardia a su ronda. Si no está cargado, lo libera orphanSweep/onEntityLoad cuando vuelva. */
 function releaseGuard(g) {
   if (!valid(g)) return;
-  try { g.triggerEvent('rpg:act_idle'); } catch {}
-  try { g.removeTag('rpg_busy'); g.removeTag('rpg_escort'); g.removeTag('rpg_jailer'); g.removeTag('rpg_hunting'); } catch {}
-  try { g.setProperty('rpg:mood', 0); } catch {}
+  crime.freeNpc(g, ['rpg_escort', 'rpg_jailer', 'rpg_hunting']);
 }
 
 function claimGuard(g, kind) {
@@ -101,8 +102,14 @@ function claimGuard(g, kind) {
 
 function findFreeGuard(player, radius) {
   let list = [];
-  try { list = player.dimension.getEntities({ type: NPC, families: ['rpg_guard'], location: player.location, maxDistance: radius, excludeTags: ['rpg_escort'] }); } catch {}
-  return list[0];
+  try { list = player.dimension.getEntities({ type: NPC, families: ['rpg_guard'], location: player.location, maxDistance: radius, excludeTags: ['rpg_escort', 'rpg_jailer', 'rpg_alarm'] }); } catch {}
+  // Ni el carcelero de ronda ni quien persigue a otro buscado.
+  return list.find((g) => { try { const pid = crime.hunterPid(g.id); return !pid || pid === player.id; } catch { return false; } });
+}
+
+/** El guardia ya custodia a otro preso (escolta, cepo, negociación) o hace la ronda de la cárcel. */
+function guardTaken(g) {
+  try { return g.hasTag('rpg_escort') || g.hasTag('rpg_jailer'); } catch { return true; }
 }
 
 /** Las manos atadas: sin usar objetos, atacar ni interactuar. */
@@ -186,6 +193,7 @@ export function arrest(player, guard) {
   if (!s) { try { s = crime.jurisdictionOf(player.dimension.id, player.location); } catch {} }
   const realm = crime.realmOfSafe(s);
   const sev = severityOf(w.stars);
+  if (valid(guard) && guardTaken(guard)) guard = undefined; // ese guardia no puede dejar a su otro preso
   if (valid(guard)) try { guard.lookAt(player.getHeadLocation()); } catch {}
   if (sev === 'minor' && heroPardon(player, d, guard, realm)) return true;
   const offer = offerFor(player, d, w, realm, sev);
@@ -234,7 +242,11 @@ function parley(player, d, guard, s, realm, offer) {
   addTags(player, 'rpg_arrested');
   setMovement(player, false);
   crime.releaseHunters(player.id, valid(guard) ? guard.id : undefined);
-  if (valid(guard)) parleyGuards.set(player.id, guard);
+  if (valid(guard)) {
+    parleyGuards.set(player.id, guard);
+    // Marcado como custodio: nadie más lo reclama y, si se recargan los scripts, la limpieza lo libera.
+    try { guard.addTag('rpg_busy'); guard.addTag('rpg_escort'); } catch {}
+  }
   dirty(player);
   const text = offer.kind === 'fine' ? say(NOBLE_FINE, { gold: offer.gold }) : say(pick(BRIBE_OFFER), { gold: offer.gold });
   if (valid(guard)) npcSay(guard, text, {}, 12);
@@ -259,6 +271,7 @@ function resolveParley(player, pay) {
     d.justice = undefined;
     untie(player);
     crime.clearWanted(player);
+    carryPending(player, d, j);
     if (j.offer.kind === 'bribe') {
       addKarma(player, -3, 'sobornar a la guardia');
       if (valid(guard)) npcSay(guard, pick(BRIBE_ACCEPT), {}, 12);
@@ -271,8 +284,38 @@ function resolveParley(player, pay) {
   }
   d.justice = undefined;
   removeTags(player, 'rpg_arrested');
+  carryPending(player, d, j, true);
   const s = crime.getSettlementSafe(j.sid);
   beginEscort(player, d, guard, s, crime.realmOfSafe(s));
+}
+
+/**
+ * Delitos denunciados durante el cepo o la negociación (crime.addStars los deja en j.pendingStars): al acabar ese
+ * castigo vuelven a ser búsqueda. quiet: sin aviso (se suman a una detención que empieza ahora mismo).
+ */
+function carryPending(player, d, j, quiet = false) {
+  const n = j?.pendingStars ?? 0;
+  if (!(n > 0)) return false;
+  const crimes = [...(j.pendingCrimes ?? [])];
+  j.pendingStars = 0;
+  j.pendingCrimes = [];
+  const floor = Math.max(1, ...crimes.map((t) => CRIMES[t]?.min ?? 1));
+  const w = d.wanted ?? (d.wanted = { stars: 0, crimes: [], decay: 0 });
+  w.stars = clamp(Math.max((w.stars ?? 0) + n, floor), 1, law('maxStars'));
+  w.crimes = [...(w.crimes ?? []), ...crimes].slice(-10);
+  w.settlementId = w.settlementId ?? j.sid;
+  w.realmId = w.realmId ?? j.rid;
+  w.decay = 0;
+  w.severity = severityOf(w.stars);
+  w.lastSeenTick = system.currentTick;
+  try { w.day = world.getDay(); } catch {}
+  addTags(player, 'rpg_wanted');
+  dirty(player);
+  if (!quiet) {
+    title(player, '§c§lSE BUSCA', starText(w.stars));
+    msg(player, `§c${EYE.OPEN} Aún tienes cuentas pendientes con la guardia: §f${crimeList(crimes)}§c. ${starText(w.stars)}`);
+  }
+  return true;
 }
 
 function findJailSettlement(s, realmId, dimId, near) {
@@ -307,6 +350,10 @@ function beginEscort(player, d, guard, s, realm) {
   d.justice = j;
   d.wanted = undefined;
   dirty(player);
+  if (countItem(player, 'rpg:jail_key') > 0) {
+    removeItem(player, 'rpg:jail_key', 64);
+    msg(player, '§7Los guardias te registran y te quitan la llave de hierro que llevabas encima.');
+  }
   removeTags(player, 'rpg_wanted');
   addTags(player, 'rpg_arrested', 'rpg_tied');
   setMovement(player, false);
@@ -336,7 +383,7 @@ function fadeJump(player, es) {
       const d = getP(player);
       const j = d?.justice;
       if (!j || j.state !== 'escort') return;
-      msg(player, '§8Tras un largo camino tirado de la soga...');
+      msg(player, `§8Tras un largo camino ${gw(d, 'tirado', 'tirada')} de la soga...`);
       arrive(player, d, j, true);
     } catch (e) { console.warn('[Aetheria] escolta: ' + e); }
   }, 10);
@@ -478,7 +525,7 @@ function beginHumiliation(player, d, j, guard, resumed) {
     crime.localMsg(dimId, anchor, `§6[Pregón] §f${text}`, 64);
     title(player, '§c§lCASTIGO PÚBLICO', `§7${fmtTime(j.left)} de vergüenza ante el pueblo`);
     psound(player, 'note.bell', 1, 0.5);
-  } else msg(player, `§c${GLYPH.tomato} Sigues expuesto en la plaza. §7Quedan §f${fmtTime(j.left)}§7.`);
+  } else msg(player, `§c${GLYPH.tomato} Sigues ${gw(d, 'expuesto', 'expuesta')} en la plaza. §7Quedan §f${fmtTime(j.left)}§7.`);
   dirty(player);
 }
 
@@ -520,12 +567,8 @@ function recruitJeerers(player, h) {
 
 function releaseJeerers(h) {
   if (!h) return;
-  for (const e of h.jeerers.values()) {
-    if (!valid(e)) continue;
-    try { e.triggerEvent('rpg:act_idle'); } catch {}
-    try { e.removeTag('rpg_busy'); e.removeTag('rpg_jeer'); } catch {}
-    try { e.setProperty('rpg:mood', 0); } catch {}
-  }
+  // Los que no están cargados los libera orphanSweep/onEntityLoad al volver (ya no estarán en ningún mapa).
+  for (const e of h.jeerers.values()) if (valid(e)) crime.freeNpc(e, ['rpg_jeer']);
   h.jeerers.clear();
 }
 
@@ -625,7 +668,7 @@ function humiliationSecond(player, d, j) {
   const jeerers = liveJeerers(h);
   if (--h.nextJeer <= 0) {
     h.nextJeer = randInt(3, 5);
-    if (jeerers.length) npcSay(pick(jeerers), pick(jeerPool(j)), {}, 32, '§6');
+    if (jeerers.length) npcSay(pick(jeerers), pick(jeerPool(j)), { fem: d.gender === 'f' }, 32, '§6');
   }
   if (++h.recruitIn >= 8) {
     h.recruitIn = 0;
@@ -660,6 +703,7 @@ function finishHumiliation(player, d, j) {
   title(player, '§a§lCASTIGO CUMPLIDO', n ? `§7Has recibido §c${n} §7tomatazos` : '§7Eres libre');
   msg(player, `§a✔ Eres libre. §7${n ? `Hueles a salsa de tomate (${n} impactos). ` : ''}La gente tardará en olvidarlo.`);
   if (chance(0.4) && giveItem(player, 'rpg:tomato', 1)) msg(player, '§8Te quedas un tomate de recuerdo.');
+  carryPending(player, d, j);
   dirty(player);
 }
 
@@ -734,6 +778,10 @@ function enterJail(player, d, j, guard, resumed) {
   j.nextFlavor = randInt(60, 120);
   removeTags(player, 'rpg_arrested', 'rpg_humiliated');
   addTags(player, 'rpg_jailed');
+  if (!resumed) {
+    j.keyOk = false; // solo abre la celda la llave robada al carcelero durante esta condena
+    removeItem(player, 'rpg:jail_key', 64);
+  }
   if (j.tied) addTags(player, 'rpg_tied');
   else removeTags(player, 'rpg_tied');
   setMovement(player, true);
@@ -747,7 +795,7 @@ function enterJail(player, d, j, guard, resumed) {
   if (resumed) msg(player, `§7${GLYPH.shackles} Sigues en prisión. Te quedan §f${fmtTime(j.left)}§7${j.tied ? ' §c(con las manos atadas)' : ''}.`);
   else {
     title(player, '§7§lPRISIÓN', `§f${fmtTime(j.left)} §7de condena`);
-    msg(player, `§7${GLYPH.shackles} ${pick(JAIL_ENTER)} §7Condena: §f${fmtTime(j.left)}§7 por ${crimeList(j.crimes)}.`);
+    msg(player, `§7${GLYPH.shackles} ${say(pick(JAIL_ENTER), { fem: d.gender === 'f' })} §7Condena: §f${fmtTime(j.left)}§7 por ${crimeList(j.crimes)}.`);
     if (!j.virtual) msg(player, KEY_HINT);
     psound(player, 'random.door_close', 1, 0.6);
   }
@@ -787,7 +835,7 @@ function startPatrol(pt, prisoners) {
 }
 
 function endPatrol(pt) {
-  if (valid(pt.jailer)) releaseGuard(pt.jailer);
+  releaseGuard(pt.jailer);
   pt.jailer = undefined;
   pt.left = 0;
   pt.next = randInt(law('patrolMin'), law('patrolMax'));
@@ -855,6 +903,7 @@ function keySuccess(player, seers) {
   const g = seers.find((x) => crime.isGuard(x.e));
   if (g) return keyCaught(player, g.e);
   if (!crime.giveJailKey(player)) return;
+  j.keyOk = true; // esta llave sí abre su celda
   const t = crime.thiefOf(d);
   t.keys++;
   crime.addThiefXp(player, 20);
@@ -869,6 +918,7 @@ function keyCaught(player, jailer) {
   const j = d?.justice;
   if (!j || j.state !== 'jail') return;
   j.tied = true;
+  j.keyOk = false;
   j.left += law('tiedExtraSeconds');
   addTags(player, 'rpg_tied');
   removeItem(player, 'rpg:jail_key', 64);
@@ -878,7 +928,7 @@ function keyCaught(player, jailer) {
   if (pt?.left > 0) endPatrol(pt);
   title(player, '§c' + EYE.OPEN, '§c¡Te han pillado!');
   msg(player, `§c${GLYPH.shackles} ${pick(KEY_CAUGHT)} §7(+${law('tiedExtraSeconds')} s de condena)`);
-  if (valid(jailer)) npcSay(jailer, pick(['¡Ni lo sueñes, rata!', '¡Las manos donde pueda verlas!', '¡Este intentaba escaparse! ¡Atadle!']), {}, 16);
+  if (valid(jailer)) npcSay(jailer, pick(['¡Ni lo sueñes, rata!', '¡Las manos donde pueda verlas!', gw(d, '¡Este intentaba escaparse! ¡Atadle!', '¡Esta intentaba escaparse! ¡Atadla!')]), {}, 16);
   psound(player, 'armor.equip_chain', 1, 0.6);
   dirty(player);
 }
@@ -888,7 +938,7 @@ function isCellDoor(j, block) {
   if (!cell?.door?.length || !block) return false;
   let l;
   try { l = block.location; } catch { return false; }
-  return cell.door.some((p) => p.x === l.x && p.y === l.y && p.z === l.z);
+  return cell.door.some((p0) => { const p = doorPos(p0); return p.x === l.x && p.y === l.y && p.z === l.z; });
 }
 
 /** Usar la llave de la celda (desde el objeto o tocando la puerta). */
@@ -902,6 +952,7 @@ export function useKey(player) {
   let l;
   try { l = player.location; } catch { return false; }
   if (!cell.door.some((p) => dist(blockCenter(p), l) <= 3)) { actionbar(player, '§7Acércate a la puerta de la celda.'); return false; }
+  if (!j.keyOk) { actionbar(player, '§7Esta llave no encaja en la cerradura de tu celda. §8(Tendrás que robársela al carcelero.)'); return false; }
   const o = crime.observe(player, { guardsOnly: true });
   if (o.seers.length) { keyCaught(player, o.seers[0].e); return false; }
   if (!removeItem(player, 'rpg:jail_key', 1)) return false;
@@ -922,43 +973,52 @@ export function useKey(player) {
   return true;
 }
 
+function doorPos(p) {
+  return { x: Math.floor(p.x), y: Math.floor(p.y), z: Math.floor(p.z) };
+}
+
+/**
+ * Abre la puerta de la celda: quita TODOS los bloques de puerta registrados (los barrotes a la altura de los pies y de
+ * la cabeza del preso) y anota cada uno para volver a poner los barrotes de la celda (cell.doorBlock) en doorTick.
+ */
 function openDoor(dim, cell) {
   const w = W();
-  w.justiceDoors = w.justiceDoors ?? [];
-  for (const p of cell.door) {
-    let type = cell.doorBlock ?? 'minecraft:iron_bars';
-    try {
-      const b = dim.getBlock(p);
-      if (b && !b.isAir) type = b.typeId;
-    } catch {}
+  if (!Array.isArray(w.justiceDoors)) w.justiceDoors = [];
+  const type = cell.doorBlock ?? 'minecraft:iron_bars';
+  for (const p0 of cell.door ?? []) {
+    const p = doorPos(p0);
     try { dim.setBlockType(p, 'minecraft:air'); } catch {}
-    w.justiceDoors.push({ dim: dim.id, x: p.x, y: p.y, z: p.z, type, left: law('doorOpenSeconds'), tries: 0 });
+    const old = w.justiceDoors.find((r) => r.dim === dim.id && r.x === p.x && r.y === p.y && r.z === p.z);
+    if (old) { old.left = law('doorOpenSeconds'); old.tries = 0; } else w.justiceDoors.push({ dim: dim.id, x: p.x, y: p.y, z: p.z, type, left: law('doorOpenSeconds'), tries: 0 });
   }
   try { sound(dim, 'random.door_open', blockCenter(cell.door[0]), 1, 0.6); } catch {}
   wDirty();
 }
 
+/** Cierra las puertas abiertas: vuelve a poner los barrotes en cada bloque anotado (cuando nadie está en el hueco). */
 function doorTick() {
   const w = W();
   const list = w.justiceDoors;
-  if (!list?.length) return;
+  if (!Array.isArray(list) || !list.length) return;
   for (const r of [...list]) {
     if (--r.left > 0) continue;
     const blocked = world.getAllPlayers().some((p) => {
-      try { return p.dimension.id === r.dim && Math.floor(p.location.x) === r.x && Math.floor(p.location.z) === r.z && Math.abs(p.location.y - r.y) < 2; } catch { return false; }
+      try { return p.dimension.id === r.dim && Math.floor(p.location.x) === r.x && Math.floor(p.location.z) === r.z && p.location.y > r.y - 2 && p.location.y < r.y + 1; } catch { return false; }
     });
     if (blocked && r.tries++ < 10) { r.left = 1; continue; }
     const dim = dimOf(r.dim);
     try {
-      dim.setBlockType({ x: r.x, y: r.y, z: r.z }, r.type);
-    } catch { r.left = 10; continue; } // chunk descargado: se reintenta
+      if (!dim) throw new Error('sin dimensión');
+      dim.setBlockType({ x: r.x, y: r.y, z: r.z }, r.type || 'minecraft:iron_bars');
+    } catch { r.left = 10; r.fails = (r.fails ?? 0) + 1; if (r.fails < 360) continue; } // chunk descargado: se reintenta (~1 h)
     list.splice(list.indexOf(r), 1);
   }
   wDirty();
 }
 
 function isDoorOpen(p) {
-  return (W().justiceDoors ?? []).some((r) => r.x === p.x && r.y === p.y && r.z === p.z);
+  const q = doorPos(p);
+  return (W().justiceDoors ?? []).some((r) => r.x === q.x && r.y === q.y && r.z === q.z);
 }
 
 /** Repara los barrotes de la celda si alguien los rompió. */
@@ -967,8 +1027,9 @@ function checkBars(j) {
   if (j.virtual || !cell?.door?.length) return;
   const dim = dimOf(j.dim);
   const type = cell.doorBlock ?? 'minecraft:iron_bars';
-  for (const p of cell.door) {
-    if (isDoorOpen(p)) continue;
+  for (const p0 of cell.door) {
+    if (isDoorOpen(p0)) continue;
+    const p = doorPos(p0);
     try {
       const b = dim.getBlock(p);
       if (b && b.isAir) dim.setBlockType(p, type);
@@ -1022,8 +1083,8 @@ function escapedSecond(player, d, j) {
   const pp = s?.jail?.patrol ?? s?.jail?.exit;
   if (pp) {
     const g = crime.guardsNear(dimOf(j.dim), pp, 48)[0];
-    if (g) npcSay(g, pick(SHOUTS.escape), { thief: player.name }, 64);
-    else crime.localMsg(j.dim, pp, `§c[Prisión] §f${say(pick(SHOUTS.escape), { thief: player.name })}`, 64);
+    if (g) npcSay(g, pick(SHOUTS.escape), { thief: player.name, fem: d.gender === 'f' }, 64);
+    else crime.localMsg(j.dim, pp, `§c[Prisión] §f${say(pick(SHOUTS.escape), { thief: player.name, fem: d.gender === 'f' })}`, 64);
   }
   reportCrime(player, 'fuga', { known: true, settlement: s });
   const w = getP(player)?.wanted;
@@ -1259,6 +1320,7 @@ export function onPlayerSpawn(player, initial) {
       parleyGuards.delete(player.id);
       d.justice = undefined;
       removeTags(player, 'rpg_arrested');
+      carryPending(player, d, j, true);
       const s = crime.getSettlementSafe(j.sid);
       if ((d.wanted?.stars ?? 0) > 0) beginEscort(player, d, undefined, s, crime.realmOfSafe(s));
       else untie(player);
@@ -1306,6 +1368,70 @@ export function onPlayerLeave(player) {
 }
 
 /* ------------------------------------------------------------------ */
+/* NPCs huérfanos (recarga del mundo o de los scripts, chunk descargado) */
+/* ------------------------------------------------------------------ */
+
+const DIMS = ['minecraft:overworld', 'minecraft:nether', 'minecraft:the_end'];
+
+/** Ids de los NPCs que la justicia controla ahora mismo (escoltas, cepo, abucheos, rondas, negociaciones). */
+function liveIds() {
+  const ids = new Set();
+  const add = (e) => { try { if (e) ids.add(e.id); } catch {} };
+  for (const es of escorts.values()) add(es.guard);
+  for (const h of humil.values()) {
+    add(h.guard);
+    for (const id of h.jeerers.keys()) ids.add(id);
+  }
+  for (const pt of patrols.values()) add(pt.jailer);
+  for (const g of parleyGuards.values()) add(g);
+  return ids;
+}
+
+/**
+ * Libera un NPC que conserva etiquetas de la justicia (o el "(!)" en el nombre) pero que ya no está en ningún mapa
+ * vivo: los mapas son de sesión, mientras que etiquetas, grupo de actividad y propiedades se guardan con la entidad.
+ * Devuelve true si lo ha liberado.
+ */
+function healOrphan(e, ids) {
+  let tagged = false;
+  let prefixed = false;
+  try {
+    if (!valid(e) || e.typeId !== NPC) return false;
+    tagged = crime.JUSTICE_TAGS.some((t) => e.hasTag(t));
+    prefixed = String(e.nameTag ?? '').startsWith(crime.ALERT_PREFIX);
+  } catch { return false; }
+  if (!tagged && !prefixed) return false;
+  if (crime.attachAlarm(e)) return false; // testigo con una alarma guardada: sigue corriendo hacia la guardia
+  if (crime.isTracked(e.id) || (ids ?? liveIds()).has(e.id)) return false;
+  crime.freeNpc(e);
+  return true;
+}
+
+/** Repasa los NPCs ocupados cargados (cada ~10 s desde secondTick). Devuelve cuántos ha liberado. */
+export function orphanSweep() {
+  const ids = liveIds();
+  let n = 0;
+  for (const id of DIMS) {
+    const dim = dimOf(id);
+    if (!dim) continue;
+    let list = [];
+    try { list = dim.getEntities({ type: NPC, tags: ['rpg_busy'] }); } catch {}
+    for (const e of list) try { if (healOrphan(e, ids)) n++; } catch {}
+  }
+  return n;
+}
+
+/** world.afterEvents.entityLoad (lo conecta main.js): un NPC que vuelve a cargarse con restos de la justicia. */
+export function onEntityLoad(ev) {
+  if (!ready) return; // aún sin mundo: lo recoge la primera limpieza periódica
+  try {
+    const e = ev?.entity;
+    if (!e || e.typeId !== NPC) return;
+    healOrphan(e);
+  } catch (err) { console.warn('[Aetheria] justicia load: ' + err); }
+}
+
+/* ------------------------------------------------------------------ */
 /* Bucles                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -1329,6 +1455,7 @@ export function fastTick() {
 
 /** Cada segundo. */
 export function secondTick() {
+  ready = true;
   try { crime.crimeSecondTick(); } catch (e) { console.warn('[Aetheria] crimen: ' + e); }
   try { doorTick(); } catch (e) { console.warn('[Aetheria] puertas: ' + e); }
   try { patrolTick(); } catch (e) { console.warn('[Aetheria] rondas: ' + e); }
@@ -1350,6 +1477,10 @@ export function secondTick() {
         case 'escaped': escapedSecond(player, d, j); break;
       }
     } catch (e) { console.warn('[Aetheria] justicia: ' + e + (e?.stack ? '\n' + e.stack : '')); }
+  }
+  if (--sweepIn <= 0) {
+    sweepIn = 10;
+    try { orphanSweep(); } catch (e) { console.warn('[Aetheria] limpieza justicia: ' + e); }
   }
 }
 
@@ -1434,4 +1565,8 @@ export function pardon(player) {
 }
 
 /** Acceso para pruebas. */
-export const _t = { escorts, humil, patrols, touch, parleyGuards };
+export const _t = {
+  escorts, humil, patrols, touch, parleyGuards,
+  /** Simula una recarga de los scripts: se pierde lo que solo vivía en memoria. */
+  reload() { escorts.clear(); humil.clear(); patrols.clear(); parleyGuards.clear(); touch.clear(); crime._t.reload(); },
+};

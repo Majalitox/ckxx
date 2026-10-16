@@ -16,7 +16,7 @@ import { RANKS } from '../data/ranks.js';
 import { CRIMES } from '../data/laws.js';
 import { fill } from '../util/text.js';
 import { clamp, dist2D } from '../util/math.js';
-import { psound, countItem } from '../util/compat.js';
+import { psound } from '../util/compat.js';
 
 /** Funciones que el integrador puede asignar. */
 export const hooks = {
@@ -73,6 +73,11 @@ export function allRealmsSafe() {
 export function realmById(id) {
   if (!id) return undefined;
   return allRealmsSafe().find((r) => r.id === id);
+}
+/** Saca a un habitante del censo de su asentamiento (se casa con el jugador o se marcha): no se repone. */
+export function releaseResidentSafe(sid, fid) {
+  if (!sid || !fid) return false;
+  try { return !!S.releaseResident?.(sid, fid); } catch { return false; }
 }
 
 const placeCache = new Map(); // pid -> { tick, s, realm }
@@ -216,7 +221,8 @@ export function playerClass(d) {
   const trade = so.trade ?? {};
   const home = hasHome(d);
   let rank;
-  if (so.noble || so.titleItem) rank = 5;
+  // Solo el título concedido por la corona (titleFlow): el documento es un objeto que se puede pasar a otro.
+  if (so.noble) rank = 5;
   else if ((guild && (d.guild.rank ?? 0) >= CLASS_RULES.caballeroGuildRank) || so.knight) rank = 4;
   else if (gold >= (birth === 'alta' ? CLASS_RULES.burguesGoldRich : CLASS_RULES.burguesGold)
     || ((trade.sold ?? 0) + (trade.bought ?? 0)) >= CLASS_RULES.burguesTrade || (trade.lvl ?? 1) >= CLASS_RULES.burguesTradeLvl) rank = 3;
@@ -418,6 +424,30 @@ export function lastShame(d) {
   return (d?.social?.deeds ?? []).find((x) => x.fame < 0);
 }
 
+// Pretéritos irregulares de 2.ª persona → 3.ª persona.
+const PRET_IRREGULAR = {
+  fuiste: 'fue', hiciste: 'hizo', diste: 'dio', viste: 'vio', estuviste: 'estuvo', tuviste: 'tuvo', pusiste: 'puso',
+  dijiste: 'dijo', trajiste: 'trajo', quisiste: 'quiso', pudiste: 'pudo', supiste: 'supo', anduviste: 'anduvo',
+};
+
+/**
+ * Hazaña o fechoría contada por otros: "Cometiste hurto en X" → "cometió hurto en X", "Te fugaste…" → "se fugó…".
+ * Devuelve undefined si el texto no empieza por un pretérito en 2.ª persona.
+ */
+export function thirdPerson(text) {
+  let t = String(text ?? '').trim();
+  let refl = '';
+  if (/^te /i.test(t)) { refl = 'se '; t = t.slice(3); }
+  const m = /^([A-Za-zÁÉÍÓÚáéíóúñÑüÜ]+)/.exec(t);
+  if (!m) return undefined;
+  const w = m[1].toLowerCase();
+  let v = PRET_IRREGULAR[w];
+  if (!v && /aste$/.test(w) && w.length > 5) v = w.slice(0, -4) + 'ó';
+  else if (!v && /iste$/.test(w) && w.length > 5) v = w.slice(0, -4) + 'ió';
+  if (!v) return undefined;
+  return refl + v + t.slice(m[1].length);
+}
+
 /* ------------------------------------------------------------------ */
 /* Adaptadores para los ganchos del integrador (hazañas automáticas)     */
 /* ------------------------------------------------------------------ */
@@ -512,19 +542,16 @@ function checkClass(player, d, before) {
 }
 
 /**
- * Revisión periódica (la llama life.tick cada pocos segundos): detecta el título nobiliario en el inventario
- * y anuncia los cambios de clase (por ejemplo, al hacerte rico).
+ * Revisión periódica (la llama life.tick cada pocos segundos): anuncia los cambios de clase (por ejemplo, al
+ * hacerte rico). Llevar el documento del título nobiliario no te hace noble: solo cuenta el título que te
+ * concede la corona (so.noble). Se borra la marca antigua de "documento en el inventario" de partidas previas.
  */
 export function classTick(player, d) {
   if (!d) return;
   const so = socialOf(d);
-  if (!so.noble && !so.titleItem) {
-    let has = 0;
-    try { has = countItem(player, 'rpg:noble_title'); } catch {}
-    if (has > 0) {
-      so.titleItem = true;
-      dirty(player);
-    }
+  if (so.titleItem !== undefined) {
+    delete so.titleItem;
+    dirty(player);
   }
   checkClass(player, d, undefined);
 }
@@ -546,7 +573,6 @@ export function journalPage(player) {
   lines.push(`§7Clase: ${pc.label} §8— ${pc.desc}`);
   if (so.birth) lines.push(`§7Origen: §ffamilia ${BIRTH_NAMES[so.birth] ?? so.birth}`);
   if (so.noble) lines.push(`§7Título: §6${gw(d, 'Noble', 'Noble')} de ${so.noble.realmName ?? 'un reino lejano'} §7(desde el día ${so.noble.day ?? '?'})`);
-  else if (so.titleItem) lines.push('§7Título: §6Título nobiliario (documento)');
   const t = so.trade ?? {};
   lines.push(`§7Comercio: §fnivel ${t.lvl ?? 1} §8(${Math.floor(t.xp ?? 0)} XP) §7· Ahorrado regateando: §6${Math.floor(t.saved ?? 0)} oro`);
   const kt = karmaTitle(d.karma ?? 0);

@@ -555,6 +555,8 @@ function shell(cv, ctx, M, o) {
     cv.F(w - 1, 0, 1, w - 1, top - 1, d - 2, axis(M.wall, 'z'));
   } else {
     cv.F(0, 0, 0, w - 1, top - 1, d - 1, M.wall, 'hollow');
+    // 'hollow' también rellena la cara inferior (y=0): vaciar la planta baja (el suelo está en y=-1).
+    cv.F(1, 0, 1, w - 2, top - 2, d - 2, 'air');
   }
   // Zócalo de piedra
   if (o.baseCourse ?? (arch === 'timber' || arch === 'gothic' || arch === 'dwarven')) ring(cv, 0, 0, M.found);
@@ -992,8 +994,10 @@ export function buildSmithy(cv, ctx) {
     cv.S(-1, 0, 1, M.fence);
     cv.S(-1, 1, 1, standLantern(M.light));
   }
+  // Entrada por el hueco junto al pilar central de la fachada abierta (en au está el pilar).
+  const eu = au + 1;
   return {
-    door: cv.P(au, 0, 0), doorOut: cv.P(au, 0, -1), inside: cv.C(au, 0, 1), center: cv.C(au, 0, Math.floor(d / 2)),
+    door: cv.P(eu, 0, 0), doorOut: cv.P(eu, 0, -1), inside: cv.C(eu, 0, 1), center: cv.C(au, 0, Math.floor(d / 2)),
     work: cv.C(au, 0, 2), shop: cv.C(au, 0, 2), wp: cv.C(au, 0, 2), top: 10,
   };
 }
@@ -1026,9 +1030,12 @@ export function buildMarket(cv, ctx) {
   const mu = Math.floor(w / 2);
   const lp = cv.P(mu, 0, Math.floor(d / 2) - 1);
   lampPost(ctx.plan, ctx.cul, lp.x, lp.y, lp.z, rng);
+  // Puesto del mercader en el pasillo, delante de los puestos del fondo (en el mercado pequeño
+  // floor(d/2)+1 cae sobre un poste del puesto del fondo).
+  const av = Math.min(Math.floor(d / 2) + 1, d - 4);
   return {
     door: cv.P(mu, 0, 0), doorOut: cv.P(mu, 0, -1), inside: cv.C(mu, 0, 1), center: cv.C(mu, 0, Math.floor(d / 2)),
-    work: cv.C(mu, 0, Math.floor(d / 2) + 1), shop: cv.C(mu, 0, Math.floor(d / 2) + 1), wp: cv.C(mu, 0, Math.floor(d / 2) + 1), top: 6,
+    work: cv.C(mu, 0, av), shop: cv.C(mu, 0, av), wp: cv.C(mu, 0, av), top: 6,
   };
 }
 
@@ -1179,6 +1186,7 @@ export function buildJail(cv, ctx, cells = 2) {
   const hard = ctx.cul.arch === 'fairy' || ctx.cul.arch === 'orcish' || ctx.cul.arch === 'beast' || ctx.cul.arch === 'elven' ? pal(ctx.cul.pal.found, ctx.rng) : wall;
   cv.F(0, -2, 0, w - 1, -1, d - 1, 'stone_bricks');
   cv.F(0, 0, 0, w - 1, 4, d - 1, hard, 'hollow');
+  cv.F(1, 0, 1, w - 2, 3, d - 2, 'air'); // la cara inferior del 'hollow' no es el suelo (y=-1)
   cv.F(0, 4, 0, w - 1, 4, d - 1, hard);
   ring(cv, 0, 0, M.found);
   roofFlat(cv, { ...M, roof: { ...M.roof, block: hard } }, 5, true, M.roof.slab);
@@ -1232,6 +1240,7 @@ export function buildTower(cv, ctx, opts = {}) {
   const wallB = wall.includes('leaves') ? M.frame : wall;
   cv.F(0, -1, 0, 4, -1, 4, M.found);
   cv.F(0, 0, 0, 4, H, 4, wallB, 'hollow');
+  cv.F(1, 0, 1, 3, H - 1, 3, 'air'); // la cara inferior del 'hollow' no es el suelo (y=-1)
   cv.F(1, H, 1, 3, H, 3, M.floor);
   cv.F(2, 0, 3, 2, H, 3, facing('ladder', 'N'));
   if (opts.door !== false) door(cv, 2, 0, M.door);
@@ -1301,6 +1310,7 @@ export function buildKeep(cv, ctx) {
   cv.F(0, -1, 0, w - 1, -1, d - 1, M.found);
   cv.F(1, -1, 1, w - 2, -1, d - 2, M.floor);
   cv.F(0, 0, 0, w - 1, H, d - 1, wallB, 'hollow');
+  cv.F(1, 0, 1, w - 2, H - 1, d - 2, 'air'); // la cara inferior del 'hollow' no es el suelo (y=-1)
   // Planta noble a media altura
   cv.F(1, 6, 1, w - 2, 6, d - 2, M.floor);
   cv.F(1, H, 1, w - 2, H, d - 2, wallB);

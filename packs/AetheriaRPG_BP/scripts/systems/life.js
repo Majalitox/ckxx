@@ -144,7 +144,8 @@ export function profileOf(ident) {
   if (!ident) return undefined;
   const job = ident.job ?? ident.role;
   const spec = JOBS[job] ?? JOBS.aldeano;
-  if (ident.owner) return ident.age === 'child' ? 'family_child' : 'family';
+  // Familia del jugador y su pareja (que se mudó a su casa): ritmo de la casa, no el del pueblo.
+  if (ident.owner || ident.spouseId) return ident.age === 'child' ? 'family_child' : 'family';
   if (ident.age === 'child') return ident.settlement ? 'child' : 'family_child';
   let prof = spec.sched;
   if (prof === 'guard') prof = hash(ident.id + 'turno') % 2 ? 'guard_night' : 'guard_day';
@@ -194,9 +195,15 @@ export function activityFor(ident, ctx) {
   }
   if (act === '@thief') act = (Math.floor((ctx.time ?? 0) / 2000) + h) % 2 ? 'work_market' : 'tavern';
   if (act === '@patrol') act = 'patrol_' + ((Math.floor((ctx.now ?? 0) / 800) + h) % 4);
-  // Lluvia: a cubierto (la guardia sigue con su ronda).
-  if ((ctx.weather === 'Rain' || ctx.weather === 'Thunder') && OUTDOOR.has(act) && job !== 'guardia' && job !== 'carcelero' && prof !== 'staff') {
-    act = job === 'sacerdote' || job === 'sacerdotisa' ? 'church' : h % 2 ? 'tavern' : 'home';
+  // Lluvia: a cubierto (la guardia sigue con su ronda). Solo la gente del asentamiento: el soberano no deja su
+  // trono, la familia y la pareja del jugador siguen en su casa (allí no hay marcador de hogar) y el personal en
+  // su puesto. Los niños del pueblo se van a casa, nunca a la taberna.
+  const rain = ctx.weather === 'Rain' || ctx.weather === 'Thunder';
+  const sheltered = !ident.settlement || ident.owner || ident.spouseId || ident.spouseOf
+    || prof === 'staff' || prof === 'ruler' || prof === 'family' || prof === 'family_child' || job === 'rey';
+  if (rain && !sheltered && OUTDOOR.has(act) && job !== 'guardia' && job !== 'carcelero') {
+    if (prof === 'child') act = 'home';
+    else act = job === 'sacerdote' || job === 'sacerdotisa' ? 'church' : h % 2 ? 'tavern' : 'home';
   }
   // Sin marcador para esa actividad en este asentamiento: alternativa.
   const kinds = ctx.kinds;
@@ -302,6 +309,23 @@ function tickNpc(e, base) {
       ident = fresh;
     }
   }
+  // Carterista desenmascarado otro día: vuelve a su disfraz (el cartel rojo de "Ladrón" dura solo ese día).
+  if ((ident.job ?? ident.role) === 'ladron' && ident.exposed !== undefined && ident.exposed !== base.day && !bubbles.has(e.id)) {
+    const fresh = readIdent(e); // la caché puede ser anterior a un nuevo desenmascaramiento
+    if (fresh && fresh.exposed !== undefined && fresh.exposed !== base.day) {
+      delete fresh.exposed;
+      try { economy.writeIdent(e, fresh); } catch {}
+      identCache.set(e.id, { ident: fresh, t: base.now });
+      ident = fresh;
+      try {
+        const want = npcMod.nameTagOf(fresh);
+        if (want && e.nameTag !== want) e.nameTag = want;
+      } catch {}
+    } else if (fresh) {
+      identCache.set(e.id, { ident: fresh, t: base.now });
+      ident = fresh;
+    }
+  }
   const s = settlementOf(ident.settlement, base.now);
   const ctx = { ...base, kinds: s ? wpKinds(s) : undefined };
   const act = activityFor(ident, ctx);
@@ -375,24 +399,32 @@ export function say(e, text, secs = 4) {
 function endBubble(e, b) {
   try {
     if (!valid(e)) return;
-    if (e.nameTag === b.shown) e.nameTag = b.base;
-    // El carterista guarda ahí su nombre real mientras huye: no lo borres.
-    if (!e.hasTag('rpg_fleeing')) e.setDynamicProperty(NT_KEY, undefined);
+    let cur = e.nameTag ?? '';
+    if (cur === b.shown) cur = b.base;
+    // Otro sistema ha envuelto el bocadillo (p. ej. el "(!)" de un testigo de la justicia): se cambia solo
+    // nuestra parte por el nombre original y se respeta el resto.
+    else if (b.shown && typeof cur === 'string' && cur.includes(b.shown)) cur = cur.replace(b.shown, () => b.base);
+    if (cur !== e.nameTag) e.nameTag = cur;
+    // El nombre original guardado solo se borra cuando ya no queda ningún bocadillo en el nombre (si queda,
+    // healNpc lo restaura al soltarlo). El carterista guarda ahí su nombre real mientras huye: no lo borres.
+    if (!e.hasTag('rpg_fleeing') && !String(cur).includes(BUBBLE_MARK)) e.setDynamicProperty(NT_KEY, undefined);
   } catch {}
 }
 
 /** Restaura ya el nombre del NPC si sigue mostrando nuestro bocadillo. */
 export function clearBubble(e) {
-  const b = bubbles.get(e?.id);
+  let id;
+  try { id = e?.id; } catch { return; }
+  const b = bubbles.get(id);
   if (!b) return;
-  bubbles.delete(e.id);
+  bubbles.delete(id);
   endBubble(e, b);
 }
 
 function bubbleTick(now) {
   for (const [id, b] of [...bubbles]) {
     if (now < b.until) {
-      // Si la justicia se lo lleva, no estorbar.
+      // Si la justicia se lo lleva, no estorbar: se restaura su nombre (sin tocar el "(!)" que le añadan).
       try { if (valid(b.e) && isBusy(b.e) && !b.e.hasTag('rpg_fleeing')) clearBubble(b.e); } catch {}
       continue;
     }
@@ -664,7 +696,9 @@ function topicFor(a, b, ia, ib, ctx, player, near) {
 function playerRumor(d, place) {
   const glory = social.lastGlory(d, place.realm?.id);
   const shame = social.lastShame(d);
-  if (shame && Math.random() < 0.5) return 'Dicen que ' + shame.text.charAt(0).toLowerCase() + shame.text.slice(1).replace(/^(\w+)/, (w) => w) + '.';
+  // Los NPCs hablan del jugador en tercera persona: "Dicen que cometió hurto en Villarroble."
+  const told = shame ? social.thirdPerson(shame.text) : undefined;
+  if (told && Math.random() < 0.5) return 'Dicen que ' + told + '.';
   if (glory) return `Dicen que es ${glory.who}.`;
   return 'Dicen que es de buena familia... o eso cuentan.';
 }
@@ -1072,4 +1106,4 @@ function bindEconomy() {
 bindEconomy();
 
 /** Acceso para pruebas. */
-export const _t = { bubbles, convos, identCache, wpCache, reacted, playerBark, playerConvo, nearByPlayer, enterMemo, setWeatherFresh: (t) => { weatherFreshUntil = t; } };
+export const _t = { bubbles, convos, identCache, wpCache, reacted, playerBark, playerConvo, nearByPlayer, enterMemo, playerRumor, setWeatherFresh: (t) => { weatherFreshUntil = t; } };

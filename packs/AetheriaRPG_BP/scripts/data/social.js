@@ -211,7 +211,7 @@ export const BARK_CLASS = {
   4: {
     baja: ['¡Saludos, {trato}!', 'Qué porte... se nota que es del Gremio.', '*se cuadra* ¡{trato}!'],
     media: ['Un placer, {trato}. Gracias por proteger los caminos.', 'Con gente como usted, dormimos tranquilos.'],
-    alta: ['Un caballero/a de verdad. Así me gusta.', 'Sir {p}. Su espada honra este reino.'],
+    alta: ['Un/a caballero/a de verdad. Así me gusta.', 'Su espada honra este reino, {p}.'],
   },
   3: {
     baja: ['Qué ropas tan finas...', 'Seguro que ése/a no sabe lo que es pasar hambre.', '*mira tu bolsa con envidia*'],
@@ -251,8 +251,8 @@ export const BARK_CRIME = {
 export const BARK_CHILD = ['¡Qué niño/a tan mono/a!', '¡Eh, pequeñajo/a, no corras!', '¿Dónde están tus padres, {p}?', '¡Cómo has crecido, {p}!'];
 
 export const BARK_RACE = {
-  hate: ['Los {raza_plural} no son bienvenidos aquí.', 'Vigila a ése/a, es {raza}...', '*escupe al suelo*', 'Otro/a {raza}... lo que faltaba.'],
-  love: ['¡Un/a {raza}! Siempre es un placer.', 'Los {raza_plural} siempre son bienvenidos aquí.'],
+  hate: ['Los {raza_plural} no son bienvenidos aquí.', 'Vigila a ése/a, es de los {raza_plural}...', '*escupe al suelo*', 'Otro/a de esos {raza_plural}... lo que faltaba.'],
+  love: ['¡Uno/a de los {raza_plural}! Siempre es un placer.', 'Los {raza_plural} siempre son bienvenidos aquí.'],
 };
 
 // Rumores sobre otros NPCs (sin género para evitar errores).

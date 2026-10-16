@@ -2,14 +2,16 @@
 // testigos que corren a avisar a la guardia, estrellas de búsqueda y guardias que salen a cazarte.
 // El arresto, el cepo y la prisión viven en systems/justice.js (que importa este módulo, nunca al revés).
 import { world, system, ItemStack } from '@minecraft/server';
-import { getP, dirty, W } from '../core/store.js';
+import { getP, dirty, W, wDirty } from '../core/store.js';
 import { msg, title, actionbar, addGold, addKarma } from '../core/progression.js';
 import * as profile from '../core/profile.js';
 import * as S from './settlements.js';
+// Solo en tiempo de ejecución (bocadillos de life.js: se borran antes de tocar el nombre de un testigo).
+import * as life from './life.js';
 import {
   LAWS, CRIMES, MINIGAME, WALLET_DEFAULT, COFFER_GOLD, POCKET_ITEMS, POCKET_ITEMS_DEFAULT, COFFER_ITEMS,
   SHOUTS, VICTIM_NOTICE, REPORT_LINES, GUARD_ACK, HUNT_SHOUTS, DECAY_LINES, LOST_TRAIL, SEVERITY_NAMES,
-  severityOf, ofRuler, say,
+  severityOf, ofRuler, say, crimeWithArticle,
 } from '../data/laws.js';
 import { particle, psound, valid, giveItem, countItem, removeItem, hasEffect, isSolid } from '../util/compat.js';
 import { pick, rand, randInt, chance, clamp, dist, dist2D } from '../util/math.js';
@@ -355,12 +357,13 @@ export function eyeLevel(player) {
   return c.lvl;
 }
 
-export function eyeText(lvl, label = true) {
+/** Ojo del HUD; con etiqueta, concordada con el género del jugador (d). */
+export function eyeText(lvl, label = true, d) {
   switch (lvl) {
-    case 3: return '§c' + EYE.OPEN + (label ? ' §c¡visto!' : '');
+    case 3: return '§c' + EYE.OPEN + (label ? ` §c¡${gw(d, 'visto', 'vista')}!` : '');
     case 2: return '§6' + EYE.HALF + (label ? ' §6¡te miran!' : '');
-    case 1: return '§e' + EYE.HALF + (label ? ' §evigilado' : '');
-    default: return '§a' + EYE.CLOSED + (label ? ' §2oculto' : '');
+    case 1: return '§e' + EYE.HALF + (label ? ` §e${gw(d, 'vigilado', 'vigilada')}` : '');
+    default: return '§a' + EYE.CLOSED + (label ? ` §2${gw(d, 'oculto', 'oculta')}` : '');
   }
 }
 
@@ -378,7 +381,7 @@ export function stealthHud(player) {
   const d = getP(player);
   if (!d || !needsEye(player, d)) return '';
   const stars = d.wanted?.stars ?? 0;
-  let s = eyeText(eyeLevel(player), !stars);
+  let s = eyeText(eyeLevel(player), !stars, d);
   if (stars) s += ' ' + starText(stars);
   return s;
 }
@@ -703,7 +706,7 @@ function pocketFail(player, target, reason) {
     return;
   }
   const lead = reason === 'timeout' ? '§7Te has entretenido demasiado... ' : '';
-  npcSay(target, pick(VICTIM_NOTICE));
+  npcSay(target, pick(VICTIM_NOTICE), { fem: d?.gender === 'f' });
   if (lead) msg(player, lead + `§c${ident.name} ha notado tu mano.`);
   reportCrime(player, ident.cls === 'alta' ? 'robo_noble' : 'hurto', { victim: target, witness: target, value: 0, victimName: ident.name });
 }
@@ -912,35 +915,130 @@ function trespassTick(player, d, s) {
 /* Testigos que corren a avisar a la guardia                           */
 /* ------------------------------------------------------------------ */
 
+// Las alarmas se copian en W().alarms: si el testigo se descarga (el jugador se aleja) o el mundo se cierra a mitad,
+// la denuncia no se pierde (al agotarse el tiempo se presenta igual) y el testigo se libera al volver a cargarse.
 const alarms = new Map(); // witnessId -> alarma
+let alarmsLoaded = false;
+let alarmsSaved = -1e9;
 export const ALERT_PREFIX = '§c§l(!)§r\n';
+
+/** Etiquetas de los NPCs que controla la justicia (además de rpg_busy). */
+export const JUSTICE_TAGS = ['rpg_alarm', 'rpg_hunting', 'rpg_escort', 'rpg_jeer', 'rpg_jailer'];
 
 const SEV_RANK = { trespass: 0, theft: 1, house: 1, violence: 2, escape: 2, murder: 3 };
 
+/** Recupera las alarmas guardadas (tras recargar el mundo o los scripts). Nunca durante la ejecución temprana. */
+function loadAlarms() {
+  if (alarmsLoaded) return;
+  alarmsLoaded = true;
+  try {
+    const list = W().alarms;
+    if (!Array.isArray(list)) return;
+    const now = system.currentTick;
+    for (const r of list) {
+      if (!r?.id || alarms.has(r.id) || !CRIMES[r.type]) continue;
+      alarms.set(r.id, { ...r, e: undefined, el: Number(r.el) || 0, tk: now, last: now });
+    }
+  } catch {}
+}
+
+function saveAlarms() {
+  alarmsSaved = system.currentTick;
+  try {
+    W().alarms = [...alarms.values()].map((a) => ({
+      id: a.id, pid: a.pid, pname: a.pname, type: a.type, sid: a.sid, rid: a.rid, tag: a.tag, name: a.name,
+      victimName: a.victimName, el: Math.round((a.el ?? 0) * 10) / 10,
+    }));
+    wDirty();
+  } catch {}
+}
+
+function dropAlarm(id) {
+  if (alarms.delete(id)) saveAlarms();
+}
+
+/** Entidad del testigo (vuelve a buscarla por id si su referencia quedó inválida al descargarse). */
+function alarmEntity(a) {
+  if (valid(a.e)) return a.e;
+  let e;
+  try { e = world.getEntity(a.id); } catch {}
+  if (!valid(e)) return undefined;
+  a.e = e;
+  return e;
+}
+
+/** ¿Lo controla ahora mismo el crimen (testigo con alarma o guardia de caza)? */
+export function isTracked(id) {
+  loadAlarms();
+  return alarms.has(id) || hunters.has(id);
+}
+
+/** Si el NPC es un testigo con una alarma guardada, vuelve a enlazarlo (sigue corriendo hacia la guardia). */
+export function attachAlarm(e) {
+  loadAlarms();
+  let a;
+  try { a = alarms.get(e.id); } catch { return false; }
+  if (!a) return false;
+  if (!valid(a.e) && valid(e)) a.e = e;
+  return true;
+}
+
+/** Jugador al que persigue un guardia de caza (o undefined). */
+export function hunterPid(id) {
+  return hunters.get(id)?.pid;
+}
+
+/**
+ * Devuelve un NPC a su vida normal: actividad libre, sin etiquetas de la justicia, sin "(!)" ni enfado, y sin
+ * la marca de actividad de life.js para que vuelva a mandarle su horario. tags: etiquetas de la justicia a quitar.
+ */
+export function freeNpc(e, tags = JUSTICE_TAGS) {
+  if (!valid(e)) return false;
+  try { e.triggerEvent('rpg:act_idle'); } catch {}
+  for (const t of tags) try { e.removeTag(t); } catch {}
+  try { e.removeTag('rpg_busy'); } catch {}
+  try { e.setProperty('rpg:alert', false); } catch {}
+  try { e.setProperty('rpg:mood', 0); } catch {}
+  try {
+    // Quita la línea "(!)" sin pisar un nombre que otro sistema haya cambiado entretanto.
+    const cur = e.nameTag ?? '';
+    if (cur.startsWith(ALERT_PREFIX)) e.nameTag = cur.slice(ALERT_PREFIX.length);
+  } catch {}
+  try { e.setDynamicProperty('rpg:act', ''); } catch {}
+  return true;
+}
+
 function startAlarm(player, witness, type, s, realm, ctx) {
+  loadAlarms();
   const id = witness.id;
   const crime = CRIMES[type];
   const prev = alarms.get(id);
   if (prev && prev.pid === player.id) {
-    if ((SEV_RANK[crime.kind] ?? 0) > (SEV_RANK[CRIMES[prev.type]?.kind] ?? 0)) prev.type = type;
+    if ((SEV_RANK[crime.kind] ?? 0) > (SEV_RANK[CRIMES[prev.type]?.kind] ?? 0)) { prev.type = type; saveAlarms(); }
+    if (!valid(prev.e)) prev.e = witness;
     return prev;
   }
   if (prev) resetWitness(prev);
+  // Un bocadillo de life.js en el nombre se borra antes de leerlo (si no, quedaría pegado bajo el "(!)").
+  try { life.clearBubble?.(witness); } catch {}
   let tag = '';
   try { tag = witness.nameTag ?? ''; } catch {}
+  if (tag.startsWith(ALERT_PREFIX)) tag = tag.slice(ALERT_PREFIX.length);
   const ident = identOf(witness);
+  const now = system.currentTick;
   const a = {
-    e: witness, id, pid: player.id, pname: player.name, type, t0: system.currentTick,
+    e: witness, id, pid: player.id, pname: player.name, type, el: 0, tk: now,
     sid: s?.id, rid: realm?.id ?? s?.realmId, tag, name: ident?.name ?? 'Alguien',
-    victimName: ctx.victimName ?? (ctx.victim ? npcName(ctx.victim) : ''), last: system.currentTick,
+    victimName: ctx.victimName ?? (ctx.victim ? npcName(ctx.victim) : ''), last: now,
   };
   alarms.set(id, a);
+  saveAlarms();
   try { witness.setProperty('rpg:alert', true); } catch {}
   try { witness.setProperty('rpg:mood', 2); } catch {}
   try { witness.nameTag = ALERT_PREFIX + tag; } catch {}
   try { witness.addTag('rpg_busy'); witness.addTag('rpg_alarm'); } catch {}
   try { witness.triggerEvent('rpg:act_alarm'); } catch {}
-  npcSay(witness, pick(SHOUTS[crime.kind] ?? SHOUTS.theft), { victim: a.victimName || 'alguien', thief: player.name }, 40, '§c§l! §r§e');
+  npcSay(witness, pick(SHOUTS[crime.kind] ?? SHOUTS.theft), { victim: a.victimName || 'alguien', thief: player.name, fem: getP(player)?.gender === 'f' }, 40, '§c§l! §r§e');
   alarmFx(witness);
   markSeen(player, 140);
   title(player, '§c' + EYE.OPEN, `§e${a.name} §cte ha visto`);
@@ -956,29 +1054,22 @@ function alarmFx(e) {
   } catch {}
 }
 
+/** Fin de la alarma: el testigo vuelve a su vida (si no está cargado, lo libera la limpieza de justice.js al volver). */
 function resetWitness(a) {
-  alarms.delete(a.id);
-  const e = a.e;
-  if (!valid(e)) return;
-  try { e.setProperty('rpg:alert', false); } catch {}
-  try { e.setProperty('rpg:mood', 0); } catch {}
-  try {
-    // Quita la línea "(!)" sin pisar un nombre que otro sistema haya cambiado entretanto.
-    const cur = e.nameTag ?? '';
-    if (cur.startsWith(ALERT_PREFIX)) e.nameTag = cur.slice(ALERT_PREFIX.length);
-  } catch {}
-  try { e.removeTag('rpg_busy'); e.removeTag('rpg_alarm'); } catch {}
-  try { e.triggerEvent('rpg:act_idle'); } catch {}
+  dropAlarm(a.id);
+  const e = alarmEntity(a);
+  if (e) freeNpc(e, ['rpg_alarm']);
 }
 
 function fileReport(a, guard) {
   resetWitness(a);
-  const player = playerById(a.pid);
-  if (!player) return;
   const crime = CRIMES[a.type];
+  if (!crime) return;
+  const player = playerById(a.pid);
+  if (!player || !getP(player)) { queueReport(a); return; } // desconectado (o sin datos aún): se le aplicará al volver
   const s = getSettlementSafe(a.sid);
   const realm = realmOfSafe(s);
-  if (valid(a.e)) npcSay(a.e, pick(REPORT_LINES), { thief: player.name, crime: crime.name.toLowerCase() }, 24);
+  if (valid(a.e)) npcSay(a.e, pick(REPORT_LINES), { thief: player.name, crime: crimeWithArticle(a.type) }, 24);
   if (guard && valid(guard)) {
     npcSay(guard, pick(GUARD_ACK), {}, 24);
     startHunter(guard, player, false);
@@ -986,27 +1077,60 @@ function fileReport(a, guard) {
   addStars(player, a.type, s, realm, a.name);
 }
 
+/** Denuncia contra un jugador desconectado: queda en W().pendingReports hasta que vuelva. */
+function queueReport(a) {
+  try {
+    const w = W();
+    if (!Array.isArray(w.pendingReports)) w.pendingReports = [];
+    w.pendingReports.push({ pid: a.pid, type: a.type, sid: a.sid, rid: a.rid, name: a.name });
+    if (w.pendingReports.length > 60) w.pendingReports.splice(0, w.pendingReports.length - 60);
+    wDirty();
+  } catch {}
+}
+
+function applyPendingReports(player) {
+  let list;
+  try { list = W().pendingReports; } catch { return; }
+  if (!Array.isArray(list) || !list.length) return;
+  const mine = list.filter((r) => r?.pid === player.id);
+  if (!mine.length) return;
+  W().pendingReports = list.filter((r) => r?.pid !== player.id);
+  wDirty();
+  for (const r of mine) {
+    if (!CRIMES[r.type]) continue;
+    const s = getSettlementSafe(r.sid);
+    addStars(player, r.type, s, realmOfSafe(s) ?? (r.rid ? { id: r.rid } : undefined), r.name);
+  }
+}
+
 function alarmTick() {
+  loadAlarms();
   if (!alarms.size) return;
   const now = system.currentTick;
   for (const a of [...alarms.values()]) {
     try {
-      const e = a.e;
-      if (!valid(e)) { alarms.delete(a.id); continue; }
-      const el = (now - a.t0) / 20;
+      a.el = (a.el ?? 0) + Math.max(0, now - (a.tk ?? now)) / 20;
+      a.tk = now;
+      const e = alarmEntity(a);
+      if (!e) {
+        // Testigo descargado: la alarma sigue; si se agota el tiempo, sus gritos acaban llegando a la guardia.
+        if (a.el >= law('witnessTimeout')) fileReport(a, undefined);
+        continue;
+      }
       let guard;
       try {
         guard = e.dimension.getEntities({ type: NPC, families: ['rpg_guard'], location: e.location, maxDistance: 96, closest: 3 }).find((g) => g.id !== e.id);
       } catch {}
       if (guard && dist(guard.location, e.location) <= law('reportDistance') + 0.5) fileReport(a, guard);
-      else if (el >= law('witnessTimeout')) fileReport(a, guard && dist(guard.location, e.location) <= 24 ? guard : undefined);
+      else if (a.el >= law('witnessTimeout')) fileReport(a, guard && dist(guard.location, e.location) <= 24 ? guard : undefined);
       else if (now - a.last >= 30) {
         a.last = now;
         alarmFx(e);
         if (chance(0.25)) npcSay(e, pick(['¡GUARDIAS!', '¡Al ladrón!', '¡Socorro!', '¡Que alguien me ayude!']), {}, 32, '§c§l! §r§e');
       }
-    } catch (err) { console.warn('[Aetheria] alarma: ' + err); alarms.delete(a.id); }
+    } catch (err) { console.warn('[Aetheria] alarma: ' + err); try { resetWitness(a); } catch {} }
   }
+  if (alarms.size && now - alarmsSaved >= 40) saveAlarms(); // el tiempo transcurrido, cada 2 s
 }
 
 /* ------------------------------------------------------------------ */
@@ -1084,9 +1208,18 @@ export function addStars(player, type, s, realm, reporter) {
   const j = d.justice;
   if (inCustody(d)) {
     j.crimes = [...(j.crimes ?? []), type].slice(-10);
-    j.extra = (j.extra ?? 0) + add * 120;
-    if (j.state === 'jail' && typeof j.left === 'number') j.left += add * 120;
-    msg(player, `§c✖ ${crime.name}: la guardia lo sabe y tu condena aumentará §f${add * 2} minutos§c.`);
+    if (j.state === 'jail' || (j.state === 'escort' && j.kind === 'jail')) {
+      // Prisión (o camino de ella): la condena se alarga ya.
+      const secs = add * 120;
+      if (typeof j.left === 'number') j.left += secs;
+      if (typeof j.total === 'number') j.total += secs;
+      msg(player, `§c✖ ${crime.name}: la guardia lo sabe y tu condena aumentará §f${add * 2} minutos§c.`);
+    } else {
+      // Cepo o negociación: al terminar, estas estrellas vuelven a ser búsqueda (justice.js, carryPending).
+      j.pendingStars = (j.pendingStars ?? 0) + add;
+      j.pendingCrimes = [...(j.pendingCrimes ?? []), type].slice(-10);
+      msg(player, `§c✖ ${crime.name}: la guardia lo sabe. Cuando termine este castigo, también tendrás que responder por esto.`);
+    }
     dirty(player);
     return add;
   }
@@ -1131,6 +1264,10 @@ const spotted = new Map(); // pid -> último tick en que un guardia te vio
 
 export function startHunter(guard, player, shout) {
   if (!valid(guard) || !valid(player)) return;
+  // Un guardia que escolta, pasea a un preso o hace la ronda de la cárcel no abandona su puesto;
+  // y a quien ya está bajo custodia no se le persigue.
+  try { if (guard.hasTag('rpg_escort') || guard.hasTag('rpg_jailer') || guard.hasTag('rpg_alarm')) return; } catch { return; }
+  if (inCustody(getP(player))) return;
   const h = hunters.get(guard.id);
   if (h && h.pid === player.id) return;
   if (!h && huntersOf(player.id).length >= 6) return;
@@ -1141,7 +1278,7 @@ export function startHunter(guard, player, shout) {
   if (shout) {
     const d = getP(player);
     const realm = realmOfSafe(getSettlementSafe(d?.wanted?.settlementId));
-    npcSay(guard, pick(HUNT_SHOUTS), { of: ofRuler(realm), thief: player.name }, 40);
+    npcSay(guard, pick(HUNT_SHOUTS), { of: ofRuler(realm), thief: player.name, fem: d?.gender === 'f' }, 40);
   }
 }
 
@@ -1149,12 +1286,13 @@ export function startHunter(guard, player, shout) {
 export function releaseHunter(id, keepBusy = false) {
   const h = hunters.get(id);
   hunters.delete(id);
+  // Sin cargar: la limpieza periódica de justice.js lo libera cuando vuelva (ya no está en el mapa).
   if (!h || !valid(h.e)) return;
-  try { h.e.removeTag('rpg_hunting'); } catch {}
-  if (keepBusy) return;
-  try { h.e.triggerEvent('rpg:act_idle'); } catch {}
-  try { h.e.removeTag('rpg_busy'); h.e.removeTag('rpg_hunting'); } catch {}
-  try { h.e.setProperty('rpg:mood', 0); } catch {}
+  if (keepBusy) {
+    try { h.e.removeTag('rpg_hunting'); } catch {}
+    return;
+  }
+  freeNpc(h.e, ['rpg_hunting']);
 }
 
 export function releaseHunters(pid, exceptId) {
@@ -1271,9 +1409,11 @@ export function onEntityDie(ev) {
   if (type !== NPC) return;
   let deadId;
   try { deadId = dead.id; } catch { return; }
-  const a = alarms.get(deadId);
+  // (Si aún no se han cargado las alarmas guardadas no hay nada en memoria: al cargarlas, la de un testigo que ya no
+  // existe se presenta al agotarse el tiempo, como la de uno descargado.)
+  const a = alarmsLoaded ? alarms.get(deadId) : undefined;
   if (a) {
-    alarms.delete(deadId);
+    dropAlarm(deadId);
     const p = playerById(a.pid);
     if (p) msg(p, `§8${a.name} ya no podrá contarle a nadie lo que vio...`);
   }
@@ -1298,13 +1438,10 @@ function onPlayerDied(player) {
   if (!d || inCustody(d)) return;
   const w = d.wanted;
   if (!w || (w.stars ?? 0) <= 0) return;
+  // Morir no borra los delitos (si no, una condena de 30 min se esquivaría muriendo unas cuantas veces):
+  // solo los guardias que te perseguían vuelven a su puesto.
   releaseHunters(player.id);
-  if (w.stars > 1) {
-    w.stars--;
-    w.severity = severityOf(w.stars);
-    dirty(player);
-    msg(player, `§7La guardia te da por muerto por un tiempo... ${starText(w.stars)}`);
-  } else clearWanted(player, 'lost');
+  msg(player, `§7Los guardias que te perseguían vuelven a su puesto, pero sigues en busca y captura. ${starText(w.stars)}`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -1334,6 +1471,7 @@ export function crimeSecondTick() {
     try {
       const d = getP(player);
       if (!d) continue;
+      applyPendingReports(player);
       const s = placeOf(player);
       if (!inCustody(d) && d.justice?.state !== 'escaped') {
         if ((d.wanted?.stars ?? 0) > 0) huntTick(player, d);
@@ -1368,4 +1506,8 @@ function isTied(player) {
 }
 
 /** Acceso para pruebas. */
-export const _t = { games, alarms, hunters, unlocked, eyeCache, seenUntil, placeCache, lastHit };
+export const _t = {
+  games, alarms, hunters, unlocked, eyeCache, seenUntil, placeCache, lastHit,
+  /** Simula una recarga de los scripts: se pierde lo que solo vivía en memoria. */
+  reload() { alarms.clear(); hunters.clear(); alarmsLoaded = false; },
+};

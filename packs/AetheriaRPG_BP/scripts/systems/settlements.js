@@ -356,7 +356,15 @@ function skipGround(b) {
   return !isSolid(b);
 }
 
-/** Sondea una columna: g = suelo sólido, t = bloque más alto, w = agua/lava en superficie. */
+// Bloques que no genera el terreno: obra de jugadores (o de estructuras). Donde aparecen no se
+// construye, ni se excava, ni se allana nada.
+const PLAYER_MADE = /planks|_door|trapdoor|chest|barrel|shulker_box|^minecraft:bed$|_table|furnace|smoker|glass|wool|carpet|torch|lantern|concrete|fence|_wall$|rail|bricks|polished_|smooth_stone|smooth_quartz|_slab|_stairs|bookshelf|lectern|anvil|brewing_stand|cauldron|hopper|dispenser|dropper|piston|observer|redstone_wire|redstone_lamp|repeater|comparator|lever|ladder|scaffolding|sign|banner|flower_pot|campfire|^minecraft:bell$|beacon|composter|loom|grindstone|stonecutter|jukebox|noteblock|tnt|iron_bars|hay_block|farmland|^minecraft:cobblestone$|stripped_|glazed_terracotta|_path$|iron_block|gold_block|diamond_block|emerald_block|netherite_block|lapis_block|redstone_block|coal_block|quartz_block|candle|end_rod|chain$|skull|carved_pumpkin|lit_pumpkin|decorated_pot|pressure_plate|button|target|frame$/;
+const NATURAL_EXCEPT = /moss_carpet|end_portal_frame/;
+export function isPlayerMade(id) {
+  return !!id && PLAYER_MADE.test(id) && !NATURAL_EXCEPT.test(id);
+}
+
+/** Sondea una columna: g = suelo sólido, t = bloque más alto, w = agua/lava en superficie, pm = obra de jugador. */
 export function probeColumn(dim, x, z) {
   let top;
   try { top = dim.getTopmostBlock({ x, z }); } catch { return null; }
@@ -365,17 +373,19 @@ export function probeColumn(dim, x, z) {
   let y = ty;
   let b = top;
   let liquid = false;
+  let pm = false;
   for (let i = 0; i < 64 && b; i++) {
     let id = '';
     try { id = b.typeId; } catch {}
     if (i < 3 && (id.includes('water') || id.includes('lava'))) liquid = true;
+    if (!pm && isPlayerMade(id)) pm = true;
     if (!skipGround(b)) break;
     y--;
     try { b = dim.getBlock({ x, y, z }); } catch { b = undefined; }
   }
   let soil = false;
   try { soil = !!b && /grass_block|dirt|podzol|moss_block|mycelium|mud|farmland/.test(b.typeId); } catch {}
-  return { g: y, t: ty, w: liquid, soil };
+  return { g: y, t: ty, w: liquid, soil, pm };
 }
 
 class HMap {
@@ -387,6 +397,7 @@ class HMap {
     this.tA = new Int16Array(n);
     this.wA = new Uint8Array(n);
     this.sA = new Uint8Array(n);
+    this.pA = new Uint8Array(n); // 1 = obra de jugador en la columna
     this.k = new Uint8Array(n); // 0 sin datos, 1 conocido, 2 no cargado
     this.fallback = 64;
   }
@@ -400,6 +411,7 @@ class HMap {
     this.tA[i] = r.t;
     this.wA[i] = r.w ? 1 : 0;
     this.sA[i] = r.soil ? 1 : 0;
+    this.pA[i] = r.pm ? 1 : 0;
     this.k[i] = 1;
   }
   at(x, z) {
@@ -441,19 +453,67 @@ function evaluateSite(dim, cx, cz, R) {
   let total = 0;
   let missing = 0;
   let water = 0;
+  let pm = 0;
   const hs = [];
   for (let dz = -R; dz <= R; dz += 6) for (let dx = -R; dx <= R; dx += 6) {
     if (dx * dx + dz * dz > R * R) continue;
     total++;
     const r = probeColumn(dim, cx + dx, cz + dz);
     if (!r) { missing++; continue; }
+    if (r.pm) pm++;
     if (r.w) water++;
     else hs.push(r.g);
   }
   if (!total || missing / total > 0.15) return { ready: false };
   hs.sort((a, b) => a - b);
   const p = (q) => hs[Math.min(hs.length - 1, Math.max(0, Math.floor(q * (hs.length - 1))))] ?? 64;
-  return { ready: true, water: water / Math.max(1, total - missing), spread: p(0.9) - p(0.1), median: p(0.5) };
+  return { ready: true, water: water / Math.max(1, total - missing), spread: p(0.9) - p(0.1), median: p(0.5), pm };
+}
+
+const BAD_BIOMES = /ocean|river|peaks|beach|mushroom/;
+
+/**
+ * Criba barata de un solar con lo que YA está cargado (sin crear zonas de carga): centro y dos
+ * anillos de 8 puntos. Los puntos sin cargar no se juzgan (con poca distancia de visión el solar
+ * puede estar sin cargar: entonces decide la evaluación completa, con la espera creciente de genTick).
+ * Devuelve { ok, why }.
+ */
+function prescreenSite(dim, cx, cz, R, tolSpread) {
+  const pts = [[0, 0]];
+  for (let i = 0; i < 8; i++) {
+    const a = (i * Math.PI) / 4;
+    pts.push([Math.round(Math.cos(a) * R * 0.5), Math.round(Math.sin(a) * R * 0.5)]);
+    pts.push([Math.round(Math.cos(a + Math.PI / 8) * R * 0.9), Math.round(Math.sin(a + Math.PI / 8) * R * 0.9)]);
+  }
+  let water = 0;
+  let n = 0;
+  let centerLoaded = false;
+  const hs = [];
+  for (const [dx, dz] of pts) {
+    const loc = { x: cx + dx, y: 64, z: cz + dz };
+    const r = chunkLoaded(dim, loc) ? probeColumn(dim, loc.x, loc.z) : null;
+    if (!r) continue;
+    if (!dx && !dz) centerLoaded = true;
+    if (r.pm) return { ok: false, why: 'construcciones' };
+    n++;
+    if (r.w) water++;
+    else hs.push(r.g);
+  }
+  if (centerLoaded) {
+    try {
+      const id = dim.getBiome?.({ x: cx, y: (hs[0] ?? 64) + 1, z: cz })?.id;
+      if (id && BAD_BIOMES.test(id)) return { ok: false, why: 'bioma ' + id };
+    } catch {}
+  }
+  if (n < 5) return { ok: true, why: 'sin datos' };
+  if (water / n > 0.25) return { ok: false, why: 'agua' };
+  if (hs.length >= 3) {
+    hs.sort((a, b) => a - b);
+    const med = hs[Math.floor(hs.length / 2)];
+    if (hs[hs.length - 2] - hs[1] > tolSpread + 4) return { ok: false, why: 'desnivel' };
+    if (med < 40 || med > 200) return { ok: false, why: 'altura' };
+  }
+  return { ok: true };
 }
 
 /* ================================================================== */
@@ -540,17 +600,26 @@ async function waitReadable(dim, center, R, maxTicks = 600) {
   return false;
 }
 
-function runJobAsync(genFn) {
+/** Ejecuta un generador con system.runJob; st.cancel() detiene el trabajo y rechaza la promesa. */
+function runJobAsync(genFn, st) {
   return new Promise((resolve, reject) => {
+    let settled = false;
     function* wrap() {
       try {
         yield* genFn();
-        resolve(true);
+        if (!settled) { settled = true; resolve(true); }
       } catch (e) {
-        reject(e);
+        if (!settled) { settled = true; reject(e); }
       }
     }
-    try { system.runJob(wrap()); } catch (e) { reject(e); }
+    let handle;
+    try { handle = system.runJob(wrap()); } catch (e) { settled = true; reject(e); return; }
+    if (st) {
+      st.cancel = () => {
+        try { system.clearJob(handle); } catch {}
+        if (!settled) { settled = true; reject(new Error('obras abortadas por tiempo')); }
+      };
+    }
   });
 }
 
@@ -651,7 +720,8 @@ function* routePaths(G, H, targets) {
     let i = t;
     let guard = 0;
     while (i >= 0 && G.c[i] !== 1 && G.c[i] !== 2 && guard++ < 600) {
-      if (G.c[i] !== 7) { G.c[i] = 7; cells.push(i); }
+      // Un destino dentro de una reserva (obras de jugadores) no se pavimenta
+      if (G.c[i] !== 7 && G.c[i] !== 6) { G.c[i] = 7; cells.push(i); }
       i = prev[i];
     }
   }
@@ -694,54 +764,78 @@ function* planAll(s, cul, realm, H, G, plan, rng) {
   const py = median(plazaCells.filter((_, i) => i % 3 === 0).map(([x, z]) => H.g(x, z))) + 1;
   const found = C.pal(cul.pal.found, rng);
   const plazaB = cul.pal.plaza ?? ['stone_bricks'];
+  // Celdas reservadas (obras de jugadores, Gremio, casas familiares): ni se allanan ni se pavimentan.
+  const resv = (x, z) => G.get(x, z) === 6;
+  const anyResv = (x1, z1, x2, z2) => {
+    for (let z = z1; z <= z2; z++) for (let x = x1; x <= x2; x++) if (resv(x, z)) return true;
+    return false;
+  };
   for (let dz = -pr; dz <= pr; dz++) {
     const hw = Math.floor(Math.sqrt(Math.max(0, (pr + 0.5) ** 2 - dz * dz)));
     const z = cz + dz;
-    let maxT = py - 1;
-    let minG = py - 1;
-    for (let x = cx - hw; x <= cx + hw; x++) {
-      maxT = Math.max(maxT, H.t(x, z));
-      minG = Math.min(minG, H.g(x, z));
+    // Tramos de la fila sin celdas reservadas
+    for (let xa = cx - hw; xa <= cx + hw; xa++) {
+      if (resv(xa, z)) continue;
+      let xb = xa;
+      while (xb + 1 <= cx + hw && !resv(xb + 1, z)) xb++;
+      let maxT = py - 1;
+      let minG = py - 1;
+      for (let x = xa; x <= xb; x++) {
+        maxT = Math.max(maxT, H.t(x, z));
+        minG = Math.min(minG, H.g(x, z));
+      }
+      if (maxT >= py) plan.fillW(xa, py, z, xb, Math.min(maxT + 1, py + 40), z, 'air');
+      if (minG < py - 2) {
+        plan.fillW(xa, Math.max(minG, py - 14), z, xb, py - 2, z, found, 'replace air');
+        plan.fillW(xa, Math.max(minG, py - 14), z, xb, py - 2, z, found, 'replace water');
+      }
+      plan.fillW(xa, py - 1, z, xb, py - 1, z, plazaB[0]);
+      xa = xb;
     }
-    if (maxT >= py) plan.fillW(cx - hw, py, z, cx + hw, Math.min(maxT + 1, py + 40), z, 'air');
-    if (minG < py - 2) {
-      plan.fillW(cx - hw, Math.max(minG, py - 14), z, cx + hw, py - 2, z, found, 'replace air');
-      plan.fillW(cx - hw, Math.max(minG, py - 14), z, cx + hw, py - 2, z, found, 'replace water');
-    }
-    plan.fillW(cx - hw, py - 1, z, cx + hw, py - 1, z, plazaB[0]);
   }
   for (const [x, z] of plazaCells) {
+    if (resv(x, z)) continue;
     G.set(x, z, 2);
     if (rng() < 0.22) plan.setW(x, py - 1, z, C.pal(plazaB, rng));
   }
-  for (const [x, z] of plazaCells) H.level(x, z, x, z, py - 1);
+  for (const [x, z] of plazaCells) if (!resv(x, z)) H.level(x, z, x, z, py - 1);
   // re-marcar fuera del círculo de la plaza como libre pero con suelo real
   for (let dz = -pr; dz <= pr; dz++) for (let dx = -pr; dx <= pr; dx++) {
     if (dx * dx + dz * dz > (pr + 0.5) ** 2 && G.get(cx + dx, cz + dz) === 0) G.set(cx + dx, cz + dz, 4);
   }
   // Pieza central: pozo o fuente
-  if (fountain) S.buildFountain(plan, cul, cx, py, cz, rng, wool);
-  else S.buildWell(plan, cul, cx, py, cz, rng);
+  if (!anyResv(cx - 2, cz - 2, cx + 2, cz + 2)) {
+    if (fountain) S.buildFountain(plan, cul, cx, py, cz, rng, wool);
+    else S.buildWell(plan, cul, cx, py, cz, rng);
+  }
   // Picota (cepo) en una diagonal, mirando al centro
   const k = pr - 3;
-  const quad = pickR(rng, [[1, 1], [1, -1], [-1, 1], [-1, -1]]);
-  const sx = cx + quad[0] * k;
-  const sz = cz + quad[1] * k;
-  const stocksFace = quad[0] > 0 ? 'W' : 'E';
-  const stocks = S.buildStocks(plan, cul, sx, py, sz, rng, stocksFace);
+  const QUADS = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
+  let quad = pickR(rng, QUADS);
+  const stocksFree = (q) => !anyResv(cx + q[0] * k - 2, cz + q[1] * k - 2, cx + q[0] * k + 2, cz + q[1] * k + 2);
+  if (!stocksFree(quad)) quad = QUADS.find(stocksFree) ?? null;
+  let stocks = null;
+  if (quad) {
+    const sx = cx + quad[0] * k;
+    const sz = cz + quad[1] * k;
+    const stocksFace = quad[0] > 0 ? 'W' : 'E';
+    stocks = S.buildStocks(plan, cul, sx, py, sz, rng, stocksFace);
+  }
   // Farolas y bancos en las otras diagonales
   const lo = Math.round((pr - 1) * 0.72);
-  for (const q of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
-    if (q[0] === quad[0] && q[1] === quad[1]) continue;
-    S.lampPost(plan, cul, cx + q[0] * lo, py, cz + q[1] * lo, rng);
+  for (const q of QUADS) {
+    if (quad && q[0] === quad[0] && q[1] === quad[1]) continue;
+    if (!resv(cx + q[0] * lo, cz + q[1] * lo)) S.lampPost(plan, cul, cx + q[0] * lo, py, cz + q[1] * lo, rng);
     const bx = cx + q[0] * (pr - 2);
     const bz = cz + q[1] * (pr - 3);
-    plan.setW(bx, py, bz, S.stair(C.pal(cul.pal.roof, rng).stair, q[1] > 0 ? 'S' : 'N'));
+    if (!resv(bx, bz)) plan.setW(bx, py, bz, S.stair(C.pal(cul.pal.roof, rng).stair, q[1] > 0 ? 'S' : 'N'));
   }
-  L.plaza = { x: cx + 0.5, y: py, z: cz + 0.5 };
+  // Ancla de la plaza y guardias en el empedrado libre a 3 bloques del centro, en los ejes (la fuente
+  // ocupa hasta 2 bloques; picota, farolas y bancos están en las diagonales).
+  L.plaza = { x: cx + 0.5, y: py, z: cz + 3.5 };
   L.plazaY = py;
   L.stocks = stocks;
-  L.guardSpots.push({ x: cx + 2.5, y: py, z: cz + 0.5 }, { x: cx - 1.5, y: py, z: cz + 2.5 });
+  L.guardSpots.push({ x: cx + 3.5, y: py, z: cz + 0.5 }, { x: cx - 2.5, y: py, z: cz + 0.5 });
 
   /* ---------- Caminos principales ---------- */
   let dirs = ['N', 'E', 'S', 'W'];
@@ -790,7 +884,7 @@ function* planAll(s, cul, realm, H, G, plan, rng) {
     for (let t = -Rw; t <= Rw; t++) {
       for (const [x, z] of [[cx + t, cz - Rw], [cx + t, cz + Rw], [cx - Rw, cz + t], [cx + Rw, cz + t]]) {
         const c = G.get(x, z);
-        if (c === 1) continue;
+        if (c === 1 || c === 6) continue;
         G.set(x, z, 5);
       }
     }
@@ -1080,7 +1174,41 @@ function buildWalls(plan, H, G, cul, rng, cx, cz, Rw, Hw, wool, L, ctxBase) {
     cells.push([cx + t, cz - Rw], [cx + t, cz + Rw]);
     if (t > -Rw && t < Rw) cells.push([cx - Rw, cz + t], [cx + Rw, cz + t]);
   }
+  const resv = (x, z) => G.get(x, z) === 6;
+  // Torres primero: su solar (prepSite) despeja un anillo de 1 bloque alrededor de la huella, que
+  // se llevaría por delante el lienzo de muralla contiguo (huecos junto a cada torre y dintel de
+  // las puertas). Los lienzos se levantan después, saltando la huella de cada torre.
+  const towers = [];
+  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) towers.push({ x: cx + sx * Rw, z: cz + sz * Rw });
+  for (const g of L.gates) {
+    const [ux, uz] = S.DVEC[g.dir];
+    for (const o of [-4, 4]) towers.push({ x: g.wall.x + Math.abs(uz) * o, z: g.wall.z + Math.abs(ux) * o, gate: true });
+  }
+  const towerCells = new Set();
+  let nTowers = 0;
+  for (const t of towers) {
+    const x1 = t.x - 2;
+    const z1 = t.z - 2;
+    let blocked = false;
+    for (let z = z1 - 1; z <= z1 + 5 && !blocked; z++) for (let x = x1 - 1; x <= x1 + 5; x++) if (resv(x, z)) { blocked = true; break; }
+    if (blocked) continue; // obras de jugadores: sin torre
+    nTowers++;
+    for (let z = z1; z <= z1 + 4; z++) for (let x = x1; x <= x1 + 4; x++) towerCells.add(`${x},${z}`);
+    const hs = [H.g(x1, z1), H.g(x1 + 4, z1), H.g(x1, z1 + 4), H.g(x1 + 4, z1 + 4), H.g(t.x, t.z)];
+    const y0 = median(hs) + 1;
+    G.rect(x1, z1, x1 + 4, z1 + 4, 3);
+    prepSite(plan, H, x1, z1, x1 + 4, z1 + 4, y0, cul, rng, 'tower');
+    const r = faceToward(t.x, t.z, cx, cz);
+    const cv = new S.Canvas(plan, x1, y0, z1, 5, 5, r);
+    const ctx = { ...ctxBase, cls: 'media' };
+    try {
+      const inf = S.buildTower(cv, ctx, { H: height + 4 });
+      if (inf?.doorOut) L.targets.push({ x: inf.doorOut.x, z: inf.doorOut.z });
+      if (t.gate && inf?.wp) L.guardSpots.push(inf.wp);
+    } catch (e) { warn('torre', e); }
+  }
   for (const [x, z] of cells) {
+    if (towerCells.has(`${x},${z}`) || resv(x, z)) continue;
     const col = H.at(x, z);
     const g = col.w ? col.t : col.g;
     const gate = gateSet.has(`${x},${z}`);
@@ -1105,29 +1233,7 @@ function buildWalls(plan, H, G, cul, rng, cx, cz, Rw, Hw, wool, L, ctxBase) {
       if ((x + z) % 2 === 0) plan.setW(x, g + height, z, topB);
     }
   }
-  // Torres: esquinas y a ambos lados de cada puerta
-  const towers = [];
-  for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) towers.push({ x: cx + sx * Rw, z: cz + sz * Rw });
-  for (const g of L.gates) {
-    const [ux, uz] = S.DVEC[g.dir];
-    for (const o of [-4, 4]) towers.push({ x: g.wall.x + Math.abs(uz) * o, z: g.wall.z + Math.abs(ux) * o, gate: true });
-  }
-  for (const t of towers) {
-    const x1 = t.x - 2;
-    const z1 = t.z - 2;
-    const hs = [H.g(x1, z1), H.g(x1 + 4, z1), H.g(x1, z1 + 4), H.g(x1 + 4, z1 + 4), H.g(t.x, t.z)];
-    const y0 = median(hs) + 1;
-    G.rect(x1, z1, x1 + 4, z1 + 4, 3);
-    prepSite(plan, H, x1, z1, x1 + 4, z1 + 4, y0, cul, rng, 'tower');
-    const r = faceToward(t.x, t.z, cx, cz);
-    const cv = new S.Canvas(plan, x1, y0, z1, 5, 5, r);
-    const ctx = { ...ctxBase, cls: 'media' };
-    try {
-      const inf = S.buildTower(cv, ctx, { H: height + 4 });
-      if (inf?.doorOut) L.targets.push({ x: inf.doorOut.x, z: inf.doorOut.z });
-      if (t.gate && inf?.wp) L.guardSpots.push(inf.wp);
-    } catch (e) { warn('torre', e); }
-  }
+  // (Las torres —esquinas y ambos lados de cada puerta— ya están hechas, antes de los lienzos.)
   // Puntos de guardia en cada puerta (por dentro)
   for (const g of L.gates) {
     const [ux, uz] = S.DVEC[g.dir];
@@ -1143,7 +1249,7 @@ function buildWalls(plan, H, G, cul, rng, cx, cz, Rw, Hw, wool, L, ctxBase) {
     const fl = { x: g.wall.x + Math.abs(uz) * 2, z: g.wall.z + Math.abs(ux) * 2 };
     void fl;
   }
-  return { Rw, height, style, towers: towers.length };
+  return { Rw, height, style, towers: nTowers };
 }
 
 /* ================================================================== */
@@ -1163,13 +1269,78 @@ export function constructionStatus() {
   return `§eObras: §f${s?.name ?? active.id}§e (${s ? kindLabel(s) : '?'}) · fase ${active.phase} · ${pct}%`;
 }
 
-function* buildJob(s, dim) {
+/** Rectángulos (con margen) que cubren las celdas marcadas; si salen demasiados, se agrupan en baldosas. */
+function rectsFromCells(cells, margin) {
+  for (let q = 1; q <= 16; q *= 2) {
+    const rows = new Map(); // tz → Set(tx)
+    for (const [x, z] of cells) {
+      const tz = Math.floor(z / q);
+      if (!rows.has(tz)) rows.set(tz, new Set());
+      rows.get(tz).add(Math.floor(x / q));
+    }
+    // Tramos por fila y fusión vertical de tramos idénticos
+    const open = new Map(); // "a,b" → rect
+    const out = [];
+    for (const tz of [...rows.keys()].sort((a, b) => a - b)) {
+      const xs = [...rows.get(tz)].sort((a, b) => a - b);
+      const runs = [];
+      for (const tx of xs) {
+        const last = runs[runs.length - 1];
+        if (last && tx === last[1] + 1) last[1] = tx;
+        else runs.push([tx, tx]);
+      }
+      const next = new Map();
+      for (const [a, b] of runs) {
+        const key = a + ',' + b;
+        const r = open.get(key);
+        if (r && r.tz2 === tz - 1) { r.tz2 = tz; next.set(key, r); } else { const nr = { a, b, tz1: tz, tz2: tz }; out.push(nr); next.set(key, nr); }
+      }
+      open.clear();
+      for (const [k, v] of next) open.set(k, v);
+    }
+    if (out.length <= 160 || q === 16) {
+      return out.map((r) => ({ x1: r.a * q - margin, z1: r.tz1 * q - margin, x2: r.b * q + q - 1 + margin, z2: r.tz2 * q + q - 1 + margin, what: 'jugador' }));
+    }
+  }
+  return [];
+}
+
+/**
+ * Obras de jugadores en el solar (primer intento de construcción, antes de tocar nada): en un
+ * solar de exploración se descarta el asentamiento; en la villa inicial (mundos de la v1) o en uno
+ * forzado se reservan esas celdas con un margen de 3 bloques para no destruirlas.
+ */
+function guardPlayerBuilds(s, H, G) {
+  if (s.pmScan || Array.isArray(s.layout)) return;
+  const known = s.reserved ?? [];
+  const cells = [];
+  const N = G.n * G.n;
+  for (let i = 0; i < N; i++) {
+    if (H.k[i] !== 1 || !H.pA[i]) continue;
+    const x = G.x0 + (i % G.n);
+    const z = G.z0 + Math.floor(i / G.n);
+    // Lo que ya está reservado (sede del Gremio, casas familiares) no necesita margen extra
+    if (known.some((r) => x >= r.x1 && x <= r.x2 && z >= r.z1 && z <= r.z2)) continue;
+    cells.push([x, z]);
+  }
+  s.pmScan = true;
+  wDirty();
+  if (!cells.length) return;
+  if (s.pmReject) {
+    const e = new Error(`hay construcciones de jugadores en el solar (${cells.length} columnas)`);
+    e.playerMade = true;
+    throw e;
+  }
+  s.reserved = [...known, ...rectsFromCells(cells, 3)];
+}
+
+function* buildJob(s, dim, st) {
   const cul = C.cultureOf(s.culture);
   const realm = getRealm(s.realmId);
   const rng = seeded(s.seed || hash(s.id));
   const G = new Grid(s.center.x, s.center.z, s.radius + 6);
   const H = new HMap(dim, G);
-  active.phase = 'medición';
+  st.phase = 'medición';
   const N = G.n * G.n;
   const R2 = (s.radius + 6) ** 2;
   for (let i = 0; i < N; i++) {
@@ -1180,31 +1351,43 @@ function* buildJob(s, dim) {
     if (i % 16 === 0) yield;
   }
   H.fallback = median([H.g(s.center.x, s.center.z)]);
-  active.phase = 'trazado';
+  guardPlayerBuilds(s, H, G);
+  st.phase = 'trazado';
   const plan = new S.Plan(rng);
   const L = yield* planAll(s, cul, realm, H, G, plan, rng);
-  active.phase = 'obras';
-  active.total = plan.ops.length;
-  active.done = 0;
-  yield* S.execOps(dim, plan.ops, active);
-  active.phase = 'población';
+  st.phase = 'obras';
+  st.total = plan.ops.length;
+  st.done = 0;
+  yield* S.execOps(dim, plan.ops, st);
+  st.phase = 'población';
   yield* finishSettlement(s, L, plan, dim, rng);
 }
 
 /** Lanza la construcción de un asentamiento ya registrado (preArea: zona ya cargada a reutilizar). */
 async function construct(s, preArea) {
   if (active) { if (preArea) try { releaseArea(world.getDimension(s.dim), preArea); } catch {} return false; }
-  active = { id: s.id, phase: 'carga', t0: system.currentTick };
+  // st: estado de ESTA obra. Si se aborta por tiempo, se cancela su trabajo y otra obra puede usar
+  // `active` sin que la anterior lo toque.
+  const st = { id: s.id, phase: 'carga', t0: system.currentTick };
+  active = st;
   let area = preArea;
   let dim;
   try {
     dim = world.getDimension(s.dim);
     if (!area) area = await loadArea(dim, s.center, s.radius + 8, 'rpg_' + s.id);
+    if (st.aborted) throw new Error('obras abortadas por tiempo');
     const ok = await waitReadable(dim, s.center, s.radius + 4, 900);
     if (!ok) throw new Error('la zona no se cargó a tiempo');
-    await runJobAsync(() => buildJob(s, dim));
+    if (st.aborted) throw new Error('obras abortadas por tiempo');
+    await runJobAsync(() => buildJob(s, dim, st), st);
     return true;
   } catch (e) {
+    if (e?.playerMade) {
+      // Solar de exploración con obras de jugadores: se descarta sin construir nada.
+      rejected.push({ x: s.center.x, z: s.center.z, t: system.currentTick });
+      forgetSettlement(s, true);
+      return false;
+    }
     warn('Construcción de ' + s.name + ' interrumpida', e);
     s.failed = (s.failed ?? 0) + 1;
     if (s.failed >= 3 && s.kind !== 'inicio') forgetSettlement(s);
@@ -1212,14 +1395,18 @@ async function construct(s, preArea) {
     return false;
   } finally {
     try { releaseArea(dim, area); } catch {}
-    active = null;
+    if (active === st) active = null;
   }
 }
 
-function forgetSettlement(s) {
+/** Borra el registro de un asentamiento (dropRealm: también su reino si se creó para él y queda vacío). */
+function forgetSettlement(s, dropRealm = false) {
   const w = reg();
   w.settlements = w.settlements.filter((x) => x !== s);
   for (const r of w.realms) if (r.capitalId === s.id) r.capitalId = null;
+  if (dropRealm && s.newRealm && !w.settlements.some((x) => x.realmId === s.realmId)) {
+    w.realms = w.realms.filter((r) => r.id !== s.realmId || r.starter);
+  }
   clearRoster(s.id);
   wDirty();
 }
@@ -1241,20 +1428,28 @@ async function generateAt(dim, sx, sz, force = {}) {
   if (kind === 'capital' && capitalWithin({ x: sx, z: sz }, spacingCap) && !force.kind) kind = 'ciudad';
   const K = KINDS[kind] ?? KINDS.aldea;
   const radius = irand(rng, K.r[0], K.r[1]);
-  active = { id: 'candidato', phase: 'exploración', t0: system.currentTick };
+  const tolSpread = kind === 'aldea' ? 10 : 12;
+  // Criba con lo ya cargado antes de forzar la carga de ~50-170 chunks: la mayoría de solares se
+  // descartan (agua, montaña, construcciones) y no merece la pena cargarlos.
+  if (!force.noEval) {
+    const pre = prescreenSite(dim, sx, sz, radius, tolSpread);
+    if (!pre.ok) { rejected.push({ x: sx, z: sz, t: system.currentTick, why: pre.why }); return false; }
+  }
+  const st = { id: 'candidato', phase: 'exploración', t0: system.currentTick };
+  active = st;
   let area;
   let handed;
   let s;
   try {
     area = await loadArea(dim, { x: sx, z: sz }, radius + 18, 'rpg_cand');
     const ready = await waitReadable(dim, { x: sx, z: sz }, radius + 10, 900);
-    if (!ready) { rejected.push({ x: sx, z: sz, t: system.currentTick }); return false; }
+    if (!ready || st.aborted) { rejected.push({ x: sx, z: sz, t: system.currentTick }); return false; }
     // Evaluar varios centros posibles y quedarse con el mejor
     let best = null;
-    const tolSpread = kind === 'aldea' ? 10 : 12;
     for (const [ox, oz] of [[0, 0], [10, 0], [-10, 0], [0, 10], [0, -10]]) {
       const ev = evaluateSite(dim, sx + ox, sz + oz, radius);
       if (!ev.ready) continue;
+      if (ev.pm && !force.noEval) continue; // construcciones de jugadores: ese centro no vale
       const score = ev.spread + ev.water * 60;
       if (!best || score < best.score) best = { ...ev, x: sx + ox, z: sz + oz, score };
     }
@@ -1274,15 +1469,21 @@ async function generateAt(dim, sx, sz, force = {}) {
     }
     biomeCulture = C.weightedR(votes, rng);
     let culture = force.culture;
+    let newRealm = false;
     if (!realm) {
       culture = culture ?? biomeCulture;
       realm = createRealm(culture, { x: cx, z: cz }, rng);
+      newRealm = true;
     } else if (!culture) {
       culture = realm.culture;
       if (kind !== 'capital' && biomeCulture !== realm.culture && rng() < 0.18 && (realm.attitudes?.[biomeCulture] ?? 0) >= 0.15) culture = biomeCulture;
     }
     s = newSettlement({ kind, culture, name: C.townName(culture, rng), realm, center: { x: cx, y: (best?.median ?? 64) + 1, z: cz }, radius, seed, dim: dim.id });
     if (kind === 'capital') realm.capitalId = s.id;
+    // Exploración: si al medir el solar completo aparecen obras de jugadores, se descarta.
+    // Forzado (administradores): se respetan esas obras.
+    if (!force.noEval) s.pmReject = true;
+    if (newRealm) s.newRealm = true;
     wDirty();
     // La zona del candidato (radio + 18, desplazamiento ≤ 10) cubre la obra: se reutiliza.
     handed = area;
@@ -1292,8 +1493,9 @@ async function generateAt(dim, sx, sz, force = {}) {
     return false;
   } finally {
     try { releaseArea(dim, area); } catch {}
-    active = null;
+    if (active === st) active = null;
   }
+  if (!s) return false;
   return construct(s, handed);
 }
 
@@ -1409,6 +1611,20 @@ export function waypointList(s) {
 function* finishSettlement(s, L, plan, dim, rng) {
   const realm = getRealm(s.realmId);
   const prosperity = realm?.economy?.prosperity ?? 1;
+  // Restos de un intento anterior (mundo cerrado a media obra, obra fallida o abortada): fuera los
+  // NPCs y marcadores de este asentamiento antes de volver a poblarlo.
+  try {
+    for (const e of dim.getEntities({ tags: ['rpg_set_' + s.id] })) {
+      let t;
+      try { t = e.typeId; } catch { continue; }
+      if (t === npc.NPC_TYPE || t === WP_TYPE) try { e.remove(); } catch {}
+    }
+  } catch (e) { warn('Limpieza de ' + s.name, e); }
+  s.residents = [];
+  s.guards = [];
+  s.rulerId = null;
+  npcMiss.delete(s.id);
+  wpMiss.delete(s.id);
   const r3 = (p) => (p ? { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, z: Math.round(p.z * 10) / 10 } : null);
   // Registro para los demás sistemas
   s.plaza = r3(L.plaza);
@@ -1426,6 +1642,9 @@ function* finishSettlement(s, L, plan, dim, rng) {
   s.throne = r3(L.throne);
   s.walls = !!L.walls;
   delete s.reserved;
+  delete s.pmScan;
+  delete s.pmReject;
+  delete s.newRealm;
   wDirty();
   yield;
 
@@ -1652,28 +1871,92 @@ function tagValue(tags, prefix) {
   return undefined;
 }
 
+/**
+ * Un habitante deja el asentamiento (se casa con un jugador y se muda, etc.): se quita de la lista
+ * de NPCs y de s.residents/s.guards para que el mantenimiento no lo vuelva a crear.
+ */
+export function releaseResident(sid, fid) {
+  if (!sid || !fid) return false;
+  let changed = false;
+  try {
+    const roster = rosterOf(sid);
+    const k = roster.findIndex((r) => r.i?.id === fid);
+    if (k >= 0) {
+      roster.splice(k, 1);
+      saveRoster(sid, roster);
+      changed = true;
+    }
+  } catch (e) { warn('releaseResident', e); }
+  const s = getSettlement(sid);
+  if (s) {
+    for (const key of ['residents', 'guards']) {
+      if (Array.isArray(s[key]) && s[key].includes(fid)) { s[key] = s[key].filter((x) => x !== fid); changed = true; }
+    }
+    if (s.rulerId === fid) { s.rulerId = null; changed = true; }
+    if (changed) wDirty();
+  }
+  npcMiss.get(sid)?.delete(fid);
+  return changed;
+}
+
+function spouseOfOnline(fid, players) {
+  for (const p of players) {
+    try { if (getP(p)?.spouse === fid) return true; } catch {}
+  }
+  return false;
+}
+
+/** ¿Se ha mudado a casa de un jugador? (pareja de un jugador con casa propia). */
+function movedToPlayer(fid, players) {
+  for (const p of players) {
+    try {
+      const d = getP(p);
+      if (d?.spouse === fid && d.family?.house) return true;
+    } catch {}
+  }
+  return false;
+}
+
 function upkeep(s, players) {
   let dim;
   try { dim = world.getDimension(s.dim); } catch { return; }
   const roster = rosterOf(s.id);
   const nearPlayers = players.filter((p) => { try { return p.dimension.id === s.dim; } catch { return false; } });
+  const setTag = 'rpg_set_' + s.id;
   let ents = [];
-  try { ents = dim.getEntities({ type: npc.NPC_TYPE, tags: ['rpg_set_' + s.id] }); } catch { return; }
-  const byId = new Map();
+  try { ents = dim.getEntities({ type: npc.NPC_TYPE }); } catch { return; }
+  const ids = new Set();
+  for (const r of roster) if (r.i?.id) ids.add(r.i.id);
+  const byId = new Map(); // fid → NPCs con la etiqueta del asentamiento
+  const away = new Set(); // fid de la lista con una copia SIN la etiqueta (se mudó: pareja de un jugador)
   for (const e of ents) {
     let tags = [];
     try { tags = e.getTags(); } catch { continue; }
     const fid = tagValue(tags, 'rpg_fid_');
     if (!fid) continue;
+    if (!tags.includes(setTag)) { if (ids.has(fid)) away.add(fid); continue; }
     if (!byId.has(fid)) byId.set(fid, []);
     byId.get(fid).push(e);
   }
-  for (const list of byId.values()) if (list.length > 1) for (const e of list.slice(1)) try { e.remove(); } catch {}
+  let changed = false;
+  for (const [fid, list] of byId) {
+    let drop = 1;
+    if (away.has(fid)) {
+      // Clon que quedó en el pueblo de alguien que ya vive en otra parte
+      drop = 0;
+      if (releaseResident(s.id, fid)) changed = true;
+    } else if (roster.length && !ids.has(fid) && !spouseOfOnline(fid, players)) {
+      // NPC del asentamiento que no está en la lista (población de un intento de obra anterior,
+      // habitante que se fue): sobra. Nunca la pareja de un jugador.
+      drop = 0;
+    }
+    if (list.length > drop) for (const e of list.slice(drop)) try { e.remove(); } catch {}
+    if (!drop) byId.delete(fid);
+  }
   const miss = npcMiss.get(s.id) ?? new Map();
   npcMiss.set(s.id, miss);
   const day = safeDay();
-  let changed = false;
-  for (const r of roster) {
+  for (const r of [...roster]) {
     const id = r.i?.id;
     if (!id) continue;
     const pos = { x: r.p[0], y: r.p[1], z: r.p[2] };
@@ -1684,6 +1967,11 @@ function upkeep(s, players) {
       try {
         if (dist2D(e.location, s.center) > s.radius + 64 && !nearPlayers.some((p) => dist2D(p.location, e.location) < 32)) e.teleport(pos);
       } catch {}
+      continue;
+    }
+    if (away.has(id) || movedToPlayer(id, players)) {
+      // Ya no vive aquí: no se vuelve a crear
+      if (releaseResident(s.id, id)) changed = true;
       continue;
     }
     if (r.dd !== undefined) {
@@ -1698,7 +1986,11 @@ function upkeep(s, players) {
       spawnResident(dim, pos, r.i, s);
     }
   }
-  if (changed) { saveRoster(s.id, roster); wDirty(); }
+  if (changed) { saveRoster(s.id, rosterOf(s.id)); wDirty(); }
+  // Invasores que sobrevivieron a un ataque cancelado o a un reinicio del mundo
+  if (!raid || raid.sid !== s.id) {
+    try { for (const e of dim.getEntities({ tags: ['rpg_raid_' + s.id] })) try { e.remove(); } catch {} } catch {}
+  }
   // Marcadores
   const list = waypointList(s);
   let wps = [];
@@ -1772,6 +2064,10 @@ export function onEntityDie(ev) {
   try { if (killer && killer.typeId !== 'minecraft:player') killer = killer.getComponent?.('minecraft:projectile')?.owner ?? killer; } catch {}
   const raidTag = tagValue(tags, 'rpg_raid_');
   if (raidTag && raid && raid.sid === raidTag) {
+    let eid;
+    try { eid = e.id; } catch {}
+    if (eid !== undefined && raid.dead.has(eid)) return; // misma muerte notificada dos veces
+    raid.dead.add(eid ?? 'n' + raid.dead.size);
     try {
       if (killer?.typeId === 'minecraft:player') raid.helpers.set(killer.id, (raid.helpers.get(killer.id) ?? 0) + 1);
     } catch {}
@@ -1889,7 +2185,7 @@ function discoveryTick(player) {
 /* Generación al explorar                                               */
 /* ================================================================== */
 
-const track = new Map(); // player.id → { hist, lastTry }
+const track = new Map(); // player.id → { hist, lastTry, backoff }
 
 function genTick(player) {
   if (!cfgv('settlementGen', true)) return;
@@ -1901,10 +2197,11 @@ function genTick(player) {
   if (!w.starterId) return;
   const now = system.currentTick;
   let tr = track.get(player.id);
-  if (!tr) { tr = { hist: [], lastTry: now - 400 }; track.set(player.id, tr); }
+  if (!tr) { tr = { hist: [], lastTry: now - 400, backoff: 1 }; track.set(player.id, tr); }
   tr.hist.push({ x: loc.x, z: loc.z, t: now });
   if (tr.hist.length > 6) tr.hist.shift();
-  if (active || now - tr.lastTry < 600) return;
+  // Cada solar descartado duplica la espera (30 s, 1, 2, 4 min) para no cargar terreno una y otra vez
+  if (active || now - tr.lastTry < 600 * (tr.backoff ?? 1)) return;
   if (w.settlements.length >= cfgv('maxSettlements', 40)) return;
   const spacing = cfgv('settlementSpacing', 350);
   if (nearestSettlement(OW, loc, spacing, true)) return;
@@ -1925,7 +2222,10 @@ function genTick(player) {
     if (now - rejected[i].t > 20 * 600) rejected.splice(i, 1);
     else if (dist2D(rejected[i], site) < 120) return;
   }
-  generateAt(player.dimension, sx, sz).catch((e) => warn('generateAt', e));
+  generateAt(player.dimension, sx, sz).then(
+    (ok) => { tr.backoff = ok ? 1 : Math.min(8, (tr.backoff ?? 1) * 2); },
+    (e) => { tr.backoff = Math.min(8, (tr.backoff ?? 1) * 2); warn('generateAt', e); },
+  );
 }
 
 /** Para administradores/pruebas: crea un asentamiento delante del jugador. */
@@ -1951,7 +2251,7 @@ export function forceSettlement(player, kind, culture) {
 /* Ataques nocturnos                                                    */
 /* ================================================================== */
 
-let raid = null; // { sid, t0, total, helpers: Map, misses, lastNear }
+let raid = null; // { sid, t0, total, dead: Set(entityId), helpers: Map, misses, lastNear }
 let pendingRaid = null;
 const raidRolled = new Map(); // sid → día
 
@@ -2033,7 +2333,7 @@ export function startRaid(s, players = world.getAllPlayers()) {
     } catch {}
   }
   if (!spawned) return false;
-  raid = { sid: s.id, t0: system.currentTick, total: spawned, helpers: new Map(), misses: 0, lastNear: system.currentTick };
+  raid = { sid: s.id, t0: system.currentTick, total: spawned, dead: new Set(), helpers: new Map(), misses: 0, lastNear: system.currentTick };
   const dir = cardinal(s.center, origin).toLowerCase();
   for (const p of players) {
     try {
@@ -2053,12 +2353,17 @@ function endRaid(s, players, outcome) {
   if (!s || !r) return;
   let dim;
   try { dim = world.getDimension(s.dim); } catch {}
-  if (outcome !== 'victoria' && dim) {
-    try { for (const e of dim.getEntities({ tags: ['rpg_raid_' + s.id] })) e.remove(); } catch {}
+  if (dim) {
+    // Los que queden a la vista se retiran; los de chunks sin cargar, en el mantenimiento (upkeep).
+    try { for (const e of dim.getEntities({ tags: ['rpg_raid_' + s.id] })) try { e.remove(); } catch {} } catch {}
   }
   const near = players.filter((p) => { try { return p.dimension.id === s.dim && dist2D(p.location, s.center) < s.radius + 60; } catch { return false; } });
   if (outcome === 'huida') {
     for (const p of near) msg(p, `§7Con la primera luz del alba, los atacantes de ${s.name} huyen hacia la espesura.`);
+    return;
+  }
+  if (outcome === 'dispersión') {
+    for (const p of near) msg(p, `§7Los atacantes de ${s.name} que quedaban se dispersan por los alrededores.`);
     return;
   }
   if (outcome !== 'victoria') return;
@@ -2091,11 +2396,15 @@ function checkRaid(players, now) {
   if (near) raid.lastNear = now;
   else if (now - raid.lastNear > 20 * 60) { endRaid(s, players, 'cancelado'); return; }
   if (now - raid.t0 > 20 * 60 * 8) { endRaid(s, players, 'huida'); return; }
+  // Victoria solo con las muertes confirmadas (entityDie): getEntities no ve a los invasores que se
+  // han ido a chunks sin cargar.
+  if (raid.dead.size >= raid.total) { endRaid(s, players, 'victoria'); return; }
   let left = 1;
   try { left = dim.getEntities({ tags: ['rpg_raid_' + s.id] }).length; } catch {}
   if (left === 0) {
-    raid.misses++;
-    if (raid.misses >= 2) endRaid(s, players, 'victoria');
+    // Ninguno a la vista durante 30 s: si cayó la mayoría, se da por rechazado; si no, se dispersan
+    // (los que queden se retiran en el mantenimiento del asentamiento).
+    if (++raid.misses >= 15) endRaid(s, players, raid.dead.size >= Math.ceil(raid.total * 0.6) ? 'victoria' : 'dispersión');
     return;
   }
   raid.misses = 0;
@@ -2150,10 +2459,14 @@ export function settlementTick() {
   } catch (e) { warn('mantenimiento', e); }
   try { raidTick(players); } catch (e) { warn('ataques', e); }
   try { if (tickN % 3 === 0) kick(); } catch (e) { warn('obras', e); }
-  // Obras eternas: abortar si llevan demasiado (10 min)
+  // Obras eternas: abortar si llevan demasiado (10 min). Se detiene su trabajo (clearJob) para que
+  // no siga construyendo ni poblando en paralelo con la siguiente obra.
   if (active && system.currentTick - active.t0 > 20 * 600) {
-    warn('Obras abortadas por tiempo: ' + active.id);
+    const st = active;
+    warn('Obras abortadas por tiempo: ' + st.id);
+    st.aborted = true;
     active = null;
+    try { st.cancel?.(); } catch {}
   }
 }
 

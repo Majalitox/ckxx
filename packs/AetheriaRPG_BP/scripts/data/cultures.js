@@ -192,7 +192,7 @@ export const CULTURES = {
     jobs: { aldeano: 4, granjero: 1, herrero: 1, aventurero: 0.5 }, guardBonus: 1,
     raiders: [['rpg:goblin', 5, 0], ['minecraft:cave_spider', 2, 1], ['minecraft:skeleton', 2, 0], ['rpg:troll', 1, 6], ['rpg:orc', 2, 3]],
     tavern: ['La Barba Espumosa', 'El Yunque Sediento', 'La Jarra de Hierro', 'El Martillo Borracho'],
-    templeName: 'Salón de los Ancestros', marketName: 'Lonja de los Gremios', kindLabel: { aldea: 'Asentamiento minero', pueblo: 'Hold enano', ciudad: 'Ciudadela', capital: 'Fortaleza Real', inicio: 'Villa del Gremio' },
+    templeName: 'Salón de los Ancestros', marketName: 'Lonja de los Gremios', kindLabel: { aldea: 'Asentamiento minero', pueblo: 'Bastión enano', ciudad: 'Ciudadela', capital: 'Fortaleza Real', inicio: 'Villa del Gremio' },
   },
 
   orco: {

@@ -87,6 +87,7 @@ async function buyMenu(player, c) {
   const { s, price } = priced[sel];
   const [id, n, , name] = s;
   let cost = price;
+  let haggled = false;
   if (c.ident) {
     const tax = economy.salesTax(c.realm, d);
     const pre = Math.max(1, Math.round(price / (1 + tax)));
@@ -100,9 +101,15 @@ async function buyMenu(player, c) {
       const deal = await economy.haggle(player, c.ident, pre, 'buy', { item: name.replace(/ ×\d+$/, '') });
       if (deal === undefined) return buyMenu(player, c);
       cost = Math.max(1, Math.round(deal * (1 + tax)));
+      haggled = true;
     }
   }
-  if (!spendGold(player, cost)) return info(player, `§l${c.name}`, `§c¡No tienes suficiente oro! Necesitas ${cost}.`);
+  if (!spendGold(player, cost)) {
+    // Sin pagar no hay trato: ni experiencia de comercio, ni ahorro, ni relación con el mercader.
+    if (haggled) economy.dropHaggle?.(player);
+    return info(player, `§l${c.name}`, `§c¡No tienes suficiente oro! Necesitas ${cost}.`);
+  }
+  if (haggled) economy.commitHaggle?.(player);
   giveItem(player, id, n);
   if (c.entity) economy.walletAdd(c.entity, c.ident, cost);
   const t = social.socialOf(d).trade;
@@ -136,6 +143,7 @@ async function sellMenu(player, c) {
   const chosen = sel === 0 ? ids : [ids[sel - 1]];
   let offer = chosen.reduce((a, id) => a + unit[id] * totals[id], 0);
   let label = sel === 0 ? 'todo' : pretty(chosen[0]);
+  let haggled = false;
   if (c.ident) {
     const capped = wallet !== undefined ? Math.min(offer, wallet) : offer;
     const choice = await buttons(player, `§l${c.name}`, `§7Te ofrece: §6${capped} oro§7 por ${label}.${capped < offer ? `\n§c(Valdría ${offer}, pero no tiene más oro.)` : ''}`, [
@@ -148,6 +156,7 @@ async function sellMenu(player, c) {
       const deal = await economy.haggle(player, c.ident, offer, 'sell', { item: label, wallet });
       if (deal === undefined) return sellMenu(player, c);
       offer = deal;
+      haggled = true;
     } else offer = capped;
   }
   if (wallet !== undefined) offer = Math.min(offer, walletOf(c) ?? offer);
@@ -159,7 +168,11 @@ async function sellMenu(player, c) {
       inv.setItem(i, undefined);
     }
   }
-  if (!removed) return;
+  if (!removed) {
+    if (haggled) economy.dropHaggle?.(player);
+    return;
+  }
+  if (haggled) economy.commitHaggle?.(player);
   addGold(player, offer);
   if (c.entity) economy.walletAdd(c.entity, c.ident, -offer);
   const t = social.socialOf(d).trade;

@@ -51,17 +51,17 @@ export const LAW_LABELS = {
 /* ------------------------------------------------------------------ */
 
 // stars[strictness]: estrellas que añade según la severidad del reino (0 laxo, 1 normal, 2 estricto).
-// kind: familia de frases de los testigos. karma: penalización inmediata al cometerlo.
+// kind: familia de frases de los testigos. karma: penalización inmediata al cometerlo. art: artículo ("un hurto", "una agresión").
 export const CRIMES = {
-  hurto: { name: 'Hurto', stars: [1, 1, 1], kind: 'theft', karma: -4, glyph: '\uE305' },
-  robo_casa: { name: 'Robo en vivienda', stars: [1, 1, 2], kind: 'house', karma: -6, glyph: '\uE30E' },
-  robo_noble: { name: 'Robo a la nobleza', stars: [1, 2, 2], kind: 'theft', karma: -8, glyph: '\uE309' },
-  allanamiento: { name: 'Allanamiento de morada', stars: [1, 1, 1], kind: 'trespass', karma: -3, glyph: '\uE30E' },
-  agresion: { name: 'Agresión', stars: [1, 1, 2], kind: 'violence', karma: -5, glyph: '\uE30C' },
-  agresion_guardia: { name: 'Agresión a la guardia', stars: [2, 2, 3], kind: 'violence', karma: -8, glyph: '\uE30A' },
-  asesinato: { name: 'Asesinato', stars: [4, 4, 5], kind: 'murder', karma: 0, glyph: '\uE30B', min: 4 },
-  asesinato_guardia: { name: 'Asesinato de un guardia', stars: [4, 5, 5], kind: 'murder', karma: -20, glyph: '\uE30B', min: 4 },
-  fuga: { name: 'Fuga de prisión', stars: [2, 2, 2], kind: 'escape', karma: -10, glyph: '\uE308' },
+  hurto: { name: 'Hurto', art: 'un', stars: [1, 1, 1], kind: 'theft', karma: -4, glyph: '\uE305' },
+  robo_casa: { name: 'Robo en vivienda', art: 'un', stars: [1, 1, 2], kind: 'house', karma: -6, glyph: '\uE30E' },
+  robo_noble: { name: 'Robo a la nobleza', art: 'un', stars: [1, 2, 2], kind: 'theft', karma: -8, glyph: '\uE309' },
+  allanamiento: { name: 'Allanamiento de morada', art: 'un', stars: [1, 1, 1], kind: 'trespass', karma: -3, glyph: '\uE30E' },
+  agresion: { name: 'Agresión', art: 'una', stars: [1, 1, 2], kind: 'violence', karma: -5, glyph: '\uE30C' },
+  agresion_guardia: { name: 'Agresión a la guardia', art: 'una', stars: [2, 2, 3], kind: 'violence', karma: -8, glyph: '\uE30A' },
+  asesinato: { name: 'Asesinato', art: 'un', stars: [4, 4, 5], kind: 'murder', karma: 0, glyph: '\uE30B', min: 4 },
+  asesinato_guardia: { name: 'Asesinato de un guardia', art: 'el', stars: [4, 5, 5], kind: 'murder', karma: -20, glyph: '\uE30B', min: 4 },
+  fuga: { name: 'Fuga de prisión', art: 'una', stars: [2, 2, 2], kind: 'escape', karma: -10, glyph: '\uE308' },
 };
 
 export const CRIME_IDS = Object.keys(CRIMES);
@@ -132,42 +132,42 @@ export const MINIGAME = {
 /* Frases                                                              */
 /* ------------------------------------------------------------------ */
 
-// Gritos de los testigos (se rellenan {victim} y {thief}).
+// Gritos de los testigos (se rellenan {victim} y {thief}; {masculino|femenino} según el jugador, ver say()).
 export const SHOUTS = {
   theft: [
     '¡AL LADRÓN! ¡AL LADRÓN!',
     '¡Guardias! ¡Me han robado la bolsa!',
     '¡Eh, tú! ¡Suelta eso ahora mismo!',
-    '¡Un ratero! ¡Que alguien llame a la guardia!',
-    '¡Socorro! ¡Un carterista en la plaza!',
+    '¡{Un ratero|Una ratera}! ¡Que alguien llame a la guardia!',
+    '¡Socorro! ¡{Un carterista|Una carterista} en la plaza!',
     '¡Te he visto, sinvergüenza! ¡GUARDIAS!',
     '¡Le ha metido la mano en el bolsillo a {victim}! ¡GUARDIAS!',
   ],
   house: [
-    '¡Hay un ladrón en la casa! ¡GUARDIAS!',
+    '¡Hay {un ladrón|una ladrona} en la casa! ¡GUARDIAS!',
     '¡Están saqueando la casa de los vecinos!',
     '¡Alguien ha forzado un cofre! ¡Que venga la guardia!',
-    '¡Un saqueador! ¡Cerrad las puertas!',
+    '¡{Un saqueador|Una saqueadora}! ¡Cerrad las puertas!',
   ],
   trespass: [
     '¡Fuera de mi casa! ¡GUARDIAS!',
-    '¡Un intruso! ¡Hay un intruso en casa!',
+    '¡{Un intruso|Una intrusa}! ¡Hay {un intruso|una intrusa} en casa!',
     '¿¡Qué haces aquí dentro a estas horas!? ¡Socorro!',
   ],
   violence: [
     '¡Socorro! ¡Me atacan!',
-    '¡GUARDIAS! ¡Un loco está pegando a la gente!',
+    '¡GUARDIAS! ¡{Un loco|Una loca} está pegando a la gente!',
     '¡Auxilio! ¡Llamad a la guardia!',
     '¡Ha golpeado a {victim}! ¡A la guardia, rápido!',
   ],
   murder: [
-    '¡ASESINO! ¡HA MATADO A {victim}!',
-    '¡Sangre en la calle! ¡GUARDIAS, UN ASESINO!',
+    '¡{ASESINO|ASESINA}! ¡HA MATADO A {victim}!',
+    '¡Sangre en la calle! ¡GUARDIAS, {UN ASESINO|UNA ASESINA}!',
     '¡Que alguien avise a la guardia! ¡Han matado a {victim}!',
-    '¡No! ¡{victim}! ¡Asesino, asesino!',
+    '¡No! ¡{victim}! ¡{Asesino, asesino|Asesina, asesina}!',
   ],
   escape: [
-    '¡Se ha escapado un preso! ¡Cerrad las puertas!',
+    '¡Se ha escapado {un preso|una presa}! ¡Cerrad las puertas!',
     '¡La celda está vacía! ¡A por {thief}!',
     '¡Fuga! ¡Fuga en la prisión!',
   ],
@@ -176,7 +176,7 @@ export const SHOUTS = {
 // Lo que dice la víctima al pillarte con la mano en su bolsillo.
 export const VICTIM_NOTICE = [
   '¡Eh! ¿¡Qué haces con mis cosas!?',
-  '¡Esa mano no es la mía! ¡Ladrón!',
+  '¡Esa mano no es la mía! ¡{Ladrón|Ladrona}!',
   '¡Mi bolsa! ¡Suelta mi bolsa!',
   '¿Me estabas robando? ¡GUARDIAS!',
   '¡Te he pillado, rata!',
@@ -185,7 +185,7 @@ export const VICTIM_NOTICE = [
 
 // El testigo llega hasta el guardia.
 export const REPORT_LINES = [
-  '«¡Guardia! ¡{thief} acaba de cometer un {crime}! ¡Lo he visto con mis propios ojos!»',
+  '«¡Guardia! ¡{thief} acaba de cometer {crime}! ¡Lo he visto con mis propios ojos!»',
   '«¡Por fin le encuentro! ¡Ha sido {thief}, se lo juro!»',
   '«¡Rápido, guardia! ¡{thief} anda suelto por ahí!»',
 ];
@@ -199,7 +199,7 @@ export const GUARD_ACK = [
 // Guardias al empezar a perseguirte ({of} = "del Rey", "de la Reina", "del Consejo"...).
 export const HUNT_SHOUTS = [
   '¡Alto en nombre {of}!',
-  '¡Tú! ¡Quieto ahí!',
+  '¡Tú! ¡{Quieto|Quieta} ahí!',
   '¡Ríndete y nadie saldrá herido!',
   '¡Ahí está! ¡A por {thief}!',
   '¡No tienes adonde huir, {thief}!',
@@ -233,7 +233,7 @@ export const PROCLAMATIONS = [
 
 // Abucheos durante el castigo público.
 export const JEERS = [
-  '¡Ladrón!',
+  '¡{Ladrón|Ladrona}!',
   '¡Que te sirva de lección!',
   '¡Sinvergüenza!',
   '¡Devuelve lo que robaste!',
@@ -244,7 +244,7 @@ export const JEERS = [
   '¡A ver si así aprendes!',
   '¡Rata de callejón!',
   '¡Mis tomates valen más que tú!',
-  '¡Ladrón de gallinas!',
+  '¡{Ladrón|Ladrona} de gallinas!',
   '¡Buuuuu!',
   '¡Esto por la bolsa de mi vecina!',
   '¡Que no se te ocurra volver por aquí!',
@@ -253,9 +253,9 @@ export const JEERS = [
   '¡Ni los cuervos se te acercan!',
 ];
 export const JEERS_BY_KIND = {
-  violence: ['¡Matón de pacotilla!', '¡Ahora no pegas tan fuerte, ¿eh?!', '¡Abusón!'],
-  house: ['¡Saqueador de casas!', '¡Mi cofre no es tuyo!', '¡Ni las gallinas están a salvo contigo!'],
-  trespass: ['¡Fisgón!', '¡Las casas ajenas no se pisan!'],
+  violence: ['¡{Matón|Matona} de pacotilla!', '¡Ahora no pegas tan fuerte, ¿eh?!', '¡{Abusón|Abusona}!'],
+  house: ['¡{Saqueador|Saqueadora} de casas!', '¡Mi cofre no es tuyo!', '¡Ni las gallinas están a salvo contigo!'],
+  trespass: ['¡{Fisgón|Fisgona}!', '¡Las casas ajenas no se pisan!'],
   theft: ['¡Carterista!', '¡Manos largas!', '¡Uñas ligeras!'],
 };
 
@@ -268,7 +268,7 @@ export const STOCKS_RELEASE = [
 export const JAIL_ENTER = [
   'La puerta de hierro se cierra con un golpe seco tras de ti.',
   'El guardia te empuja dentro de la celda y echa la llave con una sonrisa.',
-  'Huele a humedad y a paja vieja. Bienvenido a tu nuevo hogar.',
+  'Huele a humedad y a paja vieja. {Bienvenido|Bienvenida} a tu nuevo hogar.',
 ];
 export const JAIL_FLAVOR = [
   'Una rata cruza la celda y te mira con desprecio.',
@@ -343,9 +343,18 @@ export function ofRuler(realm) {
   return (FEM_TITLES.has(String(t).toLowerCase()) ? 'de la ' : 'del ') + t;
 }
 
-/** Rellena {claves}. */
+/** Rellena {claves} y elige {masculino|femenino} según ctx.fem (el jugador al que se refiere la frase). */
 export function say(template, ctx = {}) {
-  return String(template).replace(/\{(\w+)\}/g, (m, k) => (ctx[k] !== undefined ? String(ctx[k]) : m));
+  return String(template)
+    .replace(/\{([^{}|]*)\|([^{}|]*)\}/g, (m, a, b) => (ctx.fem ? b : a))
+    .replace(/\{(\w+)\}/g, (m, k) => (ctx[k] !== undefined ? String(ctx[k]) : m));
+}
+
+/** "un hurto", "una agresión", "el asesinato de un guardia"... */
+export function crimeWithArticle(type) {
+  const c = CRIMES[type];
+  if (!c) return 'un delito';
+  return `${c.art ?? 'un'} ${c.name.toLowerCase()}`;
 }
 
 /** Lista legible de delitos: "Hurto y Agresión". */

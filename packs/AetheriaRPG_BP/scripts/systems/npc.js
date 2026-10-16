@@ -13,11 +13,11 @@ import {
   JOBS, HAT, TOOL, CLS_INDEX, CLS_NAMES, GUILD_STAFF, WALLET, MERCHANT_WALLET, TAVERN_MENU, ROUND_PRICE,
   NOBLE_TALK, BEGGAR, ROYAL, GUARD_LAW_INTRO, BARD_SONG,
 } from '../data/social.js';
-import { LAWS, CRIMES, STRICTNESS_NAMES } from '../data/laws.js';
+import { CRIMES, STRICTNESS_NAMES } from '../data/laws.js';
 import { GOVERNMENTS, STRICTNESS } from '../data/cultures.js';
 import { genGuildBoard } from '../data/quests.js';
 import { ensureQuests } from './quests.js';
-import { reply, opening, moodOf, isFamilyRole, vars, genderize } from './chat.js';
+import { reply, opening, moodOf, isFamilyRole, vars, genderize, lawValue } from './chat.js';
 import * as social from './social.js';
 import * as economy from './economy.js';
 import * as life from './life.js';
@@ -606,10 +606,19 @@ async function propose(player, ident, entity, rel) {
   psound(player, 'random.levelup', 1, 0.8);
   // La pareja se muda a tu casa.
   const house = d.family?.house;
-  if (entity && valid(entity) && house) {
+  let dim;
+  try { if (house) dim = world.getDimension(house.dim ?? 'overworld'); } catch {}
+  if (entity && valid(entity) && dim) {
+    // Deja su asentamiento: fuera del censo (si no, el mantenimiento del pueblo repondría un clon) y sin
+    // aldea ni reino en la identidad (horarios y marcadores de la casa del jugador, no los del pueblo).
+    if (ident.settlement) {
+      try { social.releaseResidentSafe(ident.settlement, ident.id); } catch {}
+    }
+    delete ident.settlement;
+    delete ident.realm;
+    delete ident.homeId;
     ident.spouseOf = player.name;
     ident.spouseId = player.id;
-    const dim = world.getDimension(house.dim ?? 'overworld');
     try { entity.remove(); } catch {}
     const e = spawnNpc(dim, { x: house.x + 0.5, y: house.y, z: house.z + 1.5 }, ident);
     if (e) msg(player, `§d${ident.name} se ha mudado a tu casa.`);
@@ -889,10 +898,7 @@ function songDeed(glory) {
 
 /** Fechoría en tercera persona: "Cometiste hurto en X" → "cometió hurto en X". */
 function songShame(shame) {
-  const t = String(shame?.text ?? '');
-  const map = [[/^Cometiste /, 'cometió '], [/^Fuiste /, 'fue '], [/^Te fugaste /, 'se fugó '], [/^Robaste /, 'robó '], [/^Mataste /, 'mató ']];
-  for (const [re, to] of map) if (re.test(t)) return t.replace(re, to);
-  return 'tiene un pasado turbio';
+  return social.thirdPerson(shame?.text) ?? 'tiene un pasado turbio';
 }
 
 /** El bardo compone una copla sobre ti: tus gestas, tu clase y, si las hay, tus fechorías. */
@@ -1091,9 +1097,9 @@ async function lawInfo(player, ident, entity) {
   for (const [k, c] of Object.entries(CRIMES)) lines.push(`§7• ${c.name}: §c${'★'.repeat(c.stars[st] ?? 1)}`);
   lines.push('');
   lines.push('§l§fCastigos§r');
-  lines.push(`§7• 1★ (delito menor): §f${LAWS.humiliationSeconds} s en la picota de la plaza, atado/a y a tomatazos.`);
-  lines.push(`§7• 2-3★ (delito grave): §f${LAWS.jailMinutesSerious} minutos de prisión.`);
-  lines.push(`§7• 4-5★ (asesinato): §f${LAWS.jailMinutesMurder} minutos de prisión.`);
+  lines.push(`§7• 1★ (delito menor): §f${lawValue('humiliationSeconds')} s en la picota de la plaza, atado/a y a tomatazos.`);
+  lines.push(`§7• 2-3★ (delito grave): §f${lawValue('jailMinutesSerious')} minutos de prisión.`);
+  lines.push(`§7• 4-5★ (asesinato): §f${lawValue('jailMinutesMurder')} minutos de prisión.`);
   lines.push('§8Quien te vea robar correrá a avisar a la guardia. Si te buscan, entrégate o huye lejos.');
   const w = d.wanted;
   lines.push('');

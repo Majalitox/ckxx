@@ -20,6 +20,24 @@ W.town.slots = 2;
 W.houses.push({ owner: 'x1', name: 'A', x: 176, y: 65, z: -105, dim: 'overworld', cx: 176, cz: -105 });
 W.houses.push({ owner: 'x2', name: 'B', x: 222, y: 65, z: -105, dim: 'overworld', cx: 222, cz: -105 });
 check('sin villa registrada', !W.starterId);
+// Obras del jugador cerca del pueblo v1 fuera de las parcelas: una base sobre el futuro camino del
+// norte y un huerto dentro del círculo de la plaza. La villa no debe tocarlas.
+const c0 = W.town.center;
+const bases = [
+  { name: 'base', x1: c0.x - 2, z1: c0.z - 40, x2: c0.x + 2, z2: c0.z - 36, block: 'minecraft:oak_planks' },
+  { name: 'huerto', x1: c0.x + 4, z1: c0.z - 6, x2: c0.x + 5, z2: c0.z - 5, block: 'minecraft:farmland' },
+];
+const ow = world.getDimension('overworld');
+const DimProto = Object.getPrototypeOf(ow);
+const origTop = DimProto.getTopmostBlock;
+DimProto.getTopmostBlock = function (l) {
+  const x = Math.floor(l.x);
+  const z = Math.floor(l.z);
+  const b = bases.find((q) => x >= q.x1 && x <= q.x2 && z >= q.z1 && z <= q.z2);
+  if (b) return { typeId: b.block, location: { x, y: 64, z }, isAir: false, isLiquid: false, isValid: true };
+  return origTop.call(this, l);
+};
+const cmd0 = log.commands.length;
 system.runInterval(() => set.settlementTick(), 40);
 for (let i = 0; i < 400 && !(set.starterSettlement()?.built); i++) await advance(20);
 const s = set.starterSettlement();
@@ -34,6 +52,19 @@ const overlaps = s.houses.filter((h) => keepOut.some(([x1, z1, x2, z2]) => !(h.m
 check('casas nuevas fuera de las reservas', overlaps.length === 0, String(overlaps.length));
 check('villa con mercado/taberna/herrería/templo', ['market', 'forge', 'tavern', 'temple'].every((k) => s.shops.some((x) => x.kind === k)), s.shops.map((x) => x.kind).join(','));
 check('reservas eliminadas tras construir', !s.reserved);
+// Ningún /fill ni /setblock de la villa toca las columnas de las obras del jugador
+for (const q of bases) {
+  const hits = log.commands.slice(cmd0).filter((c) => {
+    const m = /^(fill|setblock) (-?\d+) (-?\d+) (-?\d+)(?: (-?\d+) (-?\d+) (-?\d+))?/.exec(c);
+    if (!m) return false;
+    const n = m.slice(2).filter((v) => v !== undefined).map(Number);
+    const [x1, y1, z1, x2, y2, z2] = n.length === 3 ? [...n, ...n] : n;
+    return Math.max(x1, x2) >= q.x1 && Math.min(x1, x2) <= q.x2 && Math.max(z1, z2) >= q.z1 && Math.min(z1, z2) <= q.z2 && Math.max(y1, y2) >= 60;
+  });
+  check(`obras del jugador intactas (${q.name})`, hits.length === 0, hits.slice(0, 3).join(' | '));
+}
+check('villa con plaza y picota pese al huerto', !!s.plaza && !!s.stocks);
+DimProto.getTopmostBlock = origTop;
 console.log('WARNINGS:', errs.length, errs.slice(0, 10));
 console.log('TIMER/JOB ERRORS:', log.errors.length);
 if (errs.length || log.errors.length) process.exitCode = 1;

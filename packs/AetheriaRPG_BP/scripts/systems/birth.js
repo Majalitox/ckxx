@@ -351,6 +351,7 @@ function gatherFamily(dim, crib, family) {
     if (!fl || !isSolid(fl)) continue;
     spots.push({ x: x + 0.5, y, z: z + 0.5 });
   }
+  const held = [];
   family.forEach(({ e }, i) => {
     if (!valid(e)) return;
     try { e.addTag('rpg_busy'); e.addTag('rpg_cinematic_npc'); } catch {}
@@ -359,7 +360,28 @@ function gatherFamily(dim, crib, family) {
     try { e.triggerEvent('rpg:act_sleep'); } catch {}
     try { e.setProperty('rpg:mood', 1); } catch {}
     try { e.lookAt(crib.center); } catch {}
+    held.push({ e, at });
   });
+  return held;
+}
+
+/**
+ * Mantiene a la familia en su sitio durante la escena: no se confía en que la actividad de dormir los deje
+ * quietos (si se mueven más de medio bloque, vuelven a su sitio mirando a la cuna). Devuelve el id del intervalo.
+ */
+function holdFamily(held, crib) {
+  if (!held?.length) return undefined;
+  return system.runInterval(() => {
+    for (const { e, at } of held) {
+      try {
+        if (!valid(e)) continue;
+        const l = e.location;
+        if (Math.hypot(l.x - at.x, l.z - at.z) > 0.5 || Math.abs(l.y - at.y) > 1) {
+          try { e.teleport(at, { facingLocation: crib.center }); } catch { try { e.teleport(at); } catch {} }
+        }
+      } catch {}
+    }
+  }, 10);
 }
 
 function releaseFamily(family) {
@@ -427,7 +449,7 @@ export async function birthCinematic(player, info) {
     // El bebé, diminuto, en la cuna.
     try { player.teleport({ x: c.x, y: crib.cell.y, z: c.z }, { dimension: dim, facingLocation: orbit(c, base, 2, 0.8) }); } catch {}
     try { player.triggerEvent('rpg:scale_' + scalePct(0.42 * (info.race?.scale ?? 1))); } catch {}
-    gatherFamily(dim, crib, st.family);
+    st.hold = holdFamily(gatherFamily(dim, crib, st.family), crib);
     narrate(player, '§f…', '', 50);
     for (let i = 0; i < 3; i++) st.timers.push(system.runTimeout(() => psound(player, 'mob.warden.heartbeat', 0.7, 1.15), 6 + i * 16));
     await sleep(34);
@@ -494,6 +516,7 @@ function restoreCinematic(player, st) {
   try { system.clearRun(st.safety); } catch {}
   for (const t of st.timers ?? []) try { system.clearRun(t); } catch {}
   if (st.swirl) try { system.clearRun(st.swirl); } catch {}
+  if (st.hold !== undefined) try { system.clearRun(st.hold); } catch {}
   releaseFamily(st.family);
   try { active.delete(player.id); } catch {}
   recoverCinematic(player);

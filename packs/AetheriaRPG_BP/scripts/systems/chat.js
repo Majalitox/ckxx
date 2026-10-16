@@ -16,6 +16,8 @@ import { CLS_NAMES, DAY_JOBS } from '../data/social.js';
 import * as social from './social.js';
 import * as economy from './economy.js';
 import * as life from './life.js';
+// Solo en tiempo de ejecución: las penas vigentes (los administradores pueden cambiarlas en los ajustes).
+import * as crime from './crime.js';
 
 /* ------------------------------------------------------------------ */
 /* Clima (Dimension.getWeather no existe en 2.x estable: caché del evento) */
@@ -86,7 +88,13 @@ function timeDesc() {
   return weather + 'Es de noche. Los monstruos acechan; ten cuidado.';
 }
 
+// Femeninos irregulares ("caballero/a" → "dama").
+const FEM_IRREGULAR = { caballero: 'dama', Caballero: 'Dama' };
+
 function fem(w) {
+  if (FEM_IRREGULAR[w]) return FEM_IRREGULAR[w];
+  if (/^[Uu]n$/.test(w) || /^[Bb]uen$/.test(w)) return w + 'a'; // un/a, buen/a → una, buena
+  if (/ún$/.test(w)) return w.slice(0, -2) + 'una'; // algún/a, ningún/a → alguna, ninguna
   if (/^[EeÉé]st?e$/.test(w)) return w.slice(0, -1) + 'a'; // ese/ése/este/éste → esa/ésa/esta/ésta
   if (/ón$/.test(w)) return w.slice(0, -2) + 'ona';
   if (/ío$/.test(w)) return w.slice(0, -2) + 'ía';
@@ -129,13 +137,22 @@ export function placeCtx(c) {
   return c._place;
 }
 
+/** Valor vigente de una ley (crime.law: ajustes del administrador) o el de serie. */
+export function lawValue(key) {
+  try {
+    const v = crime.law?.(key);
+    if (v !== undefined && v !== null) return v;
+  } catch {}
+  return LAWS[key];
+}
+
 function lawPhrase(realm) {
   const st = Math.max(0, Math.min(2, Number(realm?.strictness ?? 1) || 0));
   const name = STRICTNESS_NAMES[st] ?? 'firme';
   const tax = Math.round(economy.salesTax(realm, undefined) * 100);
   const where = realm?.name ? social.realmArt(realm.name) : 'estas tierras';
-  return `En ${where} la justicia es ${name}: un hurto se paga con ${LAWS.humiliationSeconds} segundos en la picota y una lluvia de tomates; ` +
-    `un delito grave, con ${LAWS.jailMinutesSerious} minutos de cárcel; y la sangre, con ${LAWS.jailMinutesMurder}. ` +
+  return `En ${where} la justicia es ${name}: un hurto se paga con ${lawValue('humiliationSeconds')} segundos en la picota y una lluvia de tomates; ` +
+    `un delito grave, con ${lawValue('jailMinutesSerious')} minutos de cárcel; y la sangre, con ${lawValue('jailMinutesMurder')}. ` +
     (st === 0 ? 'Los guardias son blandos y a veces aceptan un "donativo". ' : st === 2 ? 'Aquí nadie se libra, ni con oro. ' : 'La guardia castiga lo que ve. ') +
     `El impuesto real es del ${tax} %.`;
 }

@@ -19,6 +19,9 @@ export function nearestSettlement(dimId, loc, maxDist = Infinity) {
   for (const s of allSettlements()) { if ((s.dim ?? 'minecraft:overworld') !== dimId) continue; const d = Math.hypot(loc.x - s.center.x, loc.z - s.center.z); if (d < bd && d <= maxDist) { bd = d; best = s; } }
   return best;
 }
+export function ensureStarterVillage() { return true; }
+export function nextHouseSpot() { return { x: -200, z: -200 }; }
+export function settlementTick() {}
 `;
 const target = './scripts/systems/settlements.js';
 if (!(process.env.REAL_SETTLEMENTS === '1' && fs.existsSync(target))) fs.writeFileSync(target, STUB);
@@ -32,7 +35,8 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL
 const store = await import('./scripts/core/store.js');
 const crime = await import('./scripts/systems/crime.js');
 const justice = await import('./scripts/systems/justice.js');
-const { CRIMES } = await import('./scripts/data/laws.js');
+const { CRIMES, crimeWithArticle, say } = await import('./scripts/data/laws.js');
+const life = await import('./scripts/systems/life.js');
 const { EYE, STAR_ON, STAR_OFF } = crime;
 
 // --- Conexiones (lo que hará main.js) ---
@@ -45,6 +49,7 @@ world.afterEvents.entityDie.subscribe((ev) => justice.onEntityDie(ev));
 world.afterEvents.projectileHitEntity.subscribe((ev) => justice.onProjectileHit(ev));
 world.afterEvents.projectileHitBlock.subscribe((ev) => justice.onProjectileHit(ev));
 world.afterEvents.itemUse.subscribe((ev) => justice.onItemUse(ev.source, ev.itemStack));
+if (world.afterEvents.entityLoad) world.afterEvents.entityLoad.subscribe((ev) => justice.onEntityLoad(ev));
 system.runInterval(() => justice.fastTick(), 2);
 system.runInterval(() => justice.secondTick(), 20);
 const punished = [];
@@ -111,6 +116,7 @@ console.log('--- 1. Detección y ojo ---');
 p.isSneaking = true;
 crime.refreshEye(p);
 check('ojo cerrado: nadie cerca', crime.eyeLevel(p) === 0 && justice.hudStatus(p).includes(EYE.CLOSED), JSON.stringify(justice.hudStatus(p)));
+check('HUD en femenino: oculta', justice.hudStatus(p).includes('oculta'), JSON.stringify(justice.hudStatus(p)));
 const A = npc('Ana', at(0.5, 65, 8.5));
 A.lookAt(p.getHeadLocation());
 check('ojo entreabierto: alguien te mira', crime.refreshEye(p) === 2 && justice.hudStatus(p).includes(EYE.HALF));
@@ -173,7 +179,8 @@ const al = crime._t.alarms.get(V2.id);
 check('la víctima da la alarma', !!al && al.type === 'hurto');
 check('signo (!) sobre la víctima', V2.getProperty('rpg:alert') === true && V2.nameTag.startsWith('§c§l(!)'));
 check('corre hacia el guardia (rpg:act_alarm + rpg_busy)', V2._events.includes('rpg:act_alarm') && V2.hasTag('rpg_busy'));
-check('ojo abierto en el HUD', justice.hudStatus(p).includes(EYE.OPEN), JSON.stringify(justice.hudStatus(p)));
+check('ojo abierto en el HUD', justice.hudStatus(p).includes(EYE.OPEN) && justice.hudStatus(p).includes('¡vista!'), JSON.stringify(justice.hudStatus(p)));
+check('alarma guardada en el mundo', (store.W().alarms ?? []).some((r) => r.id === V2.id && r.type === 'hurto'));
 check('grito de alarma en el chat', p._msgs.some((m) => m.includes('[Tomás]')));
 await advanceSec(3);
 check('aún sin estrellas mientras corre', !d.wanted);
@@ -181,6 +188,8 @@ V2.teleport(at(44.5, 65, -44.5));
 await advance(12);
 check('denuncia: 1 estrella', d.wanted?.stars === 1 && p.hasTag('rpg_wanted'), JSON.stringify(d.wanted));
 check('testigo vuelve a la normalidad', V2.getProperty('rpg:alert') === false && !V2.hasTag('rpg_busy') && lastEvent(V2) === 'rpg:act_idle' && V2.nameTag === '§eTomás');
+check('su horario se vuelve a enviar (rpg:act vacío)', V2.getDynamicProperty('rpg:act') === '');
+check('alarma borrada del mundo', !(store.W().alarms ?? []).length);
 check('el guardia sale a cazarte', G1._events.includes('rpg:act_hunt') && G1.hasTag('rpg_busy'));
 const hud3 = justice.hudStatus(p);
 check('HUD: 1 estrella llena y 4 vacías', hud3.split(STAR_ON).length - 1 === 1 && hud3.split(STAR_OFF).length - 1 === 4, JSON.stringify(hud3));
@@ -310,6 +319,15 @@ await advanceSec(1);
 const key = p._inv.slots.find((s) => s?.typeId === 'rpg:jail_key');
 world.afterEvents.itemUse.fire({ source: p, itemStack: key });
 check('la puerta se abre', ow.getBlock(at(31, 65, 33)).typeId === 'minecraft:air' && ow.getBlock(at(31, 66, 33)).typeId === 'minecraft:air');
+check('cada bloque de la puerta anotado para cerrarse', (store.W().justiceDoors ?? []).length === 2 && store.W().justiceDoors.every((r) => r.type === 'minecraft:iron_bars'));
+let walkOk = true;
+for (let z = 31.5; z <= 36.5; z += 0.5) {
+  if (!crime.standable(ow, at(31.5, 65, z))) walkOk = false;
+  p.teleport(at(31.5, 65, z));
+  await advance(2);
+  if (Math.abs(p.location.z - z) > 0.01) walkOk = false;
+}
+check('el preso sale andando por el hueco (pies y cabeza libres)', walkOk, JSON.stringify(p.location));
 check('estado de fuga', d.justice?.state === 'escaped' && !p.hasTag('rpg_jailed') && !p._inv.slots.some((s) => s?.typeId === 'rpg:jail_key'));
 check('HUD de fuga', justice.hudStatus(p).includes('FUGA'));
 p.teleport(at(31.5, 65, 40.5));
@@ -523,12 +541,164 @@ await advance(2);
 check('cartel de Se Busca', ui.shown.some((f) => (f.title ?? '').includes('Se Busca')));
 
 /* ------------------------------------------------------------------ */
+console.log('--- 17. Testigo descargado, mundo recargado o jugador desconectado: la denuncia no se pierde ---');
+p.isSneaking = false;
+for (const id of [...crime._t.hunters.keys()]) crime.releaseHunter(id);
+crime.clearWanted(p);
+G1.teleport(at(170.5, 65, -170.5));
+JAILER.teleport(at(-200.5, 65, -200.5));
+p.teleport(at(25.5, 65, -40.5));
+const VA = npc('Rosa', at(27.5, 65, -40.5), { gender: 'f' });
+check('bocadillo de life.js en el nombre', life.say(VA, 'Qué buen día hace hoy.', 8) && VA.nameTag.includes('«'), JSON.stringify(VA.nameTag));
+crime.reportCrime(p, 'agresion', { witness: VA, victimName: 'Rosa' });
+check('alarma: el bocadillo se borra antes del (!)', crime._t.alarms.has(VA.id) && VA.nameTag === crime.ALERT_PREFIX + '§eRosa', JSON.stringify(VA.nameTag));
+VA.isValid = false; // el jugador se aleja: el chunk del testigo se descarga
+await advanceSec(30);
+check('testigo descargado: la denuncia llega igual (1★)', D.wanted?.stars === 1 && D.wanted.crimes.includes('agresion'), JSON.stringify(D.wanted));
+check('alarma terminada (memoria y mundo)', !crime._t.alarms.has(VA.id) && !(store.W().alarms ?? []).length);
+check('mientras no está cargado conserva su estado', VA.hasTag('rpg_alarm') && VA.hasTag('rpg_busy'));
+VA.isValid = true;
+world.afterEvents.entityLoad.fire({ entity: VA });
+check('al volver a cargarse queda libre', !VA.hasTag('rpg_busy') && !VA.hasTag('rpg_alarm') && VA.getProperty('rpg:alert') === false && VA.getProperty('rpg:mood') === 0 && lastEvent(VA) === 'rpg:act_idle', JSON.stringify(VA.getTags()));
+check('sin (!) en el nombre y con su horario', VA.nameTag === '§eRosa' && VA.getDynamicProperty('rpg:act') === '', JSON.stringify(VA.nameTag));
+crime.clearWanted(p);
+
+const VB = npc('Nico', at(27.5, 65, -44.5));
+crime.reportCrime(p, 'hurto', { witness: VB, victimName: 'Nico' });
+await advanceSec(2);
+justice._t.reload(); // se cierran y se vuelven a abrir el mundo (o se recargan los scripts) a mitad de la alarma
+await advanceSec(11); // pasa por la limpieza periódica
+check('tras recargar: la alarma se recupera del mundo', crime._t.alarms.has(VB.id) && crime._t.alarms.get(VB.id).e === VB, `el=${crime._t.alarms.get(VB.id)?.el}`);
+check('la limpieza no suelta a un testigo con alarma', VB.hasTag('rpg_alarm') && VB.nameTag.startsWith(crime.ALERT_PREFIX));
+G1.teleport(at(27.5, 65, -46.5));
+await advance(12);
+check('tras recargar: llega al guardia y te denuncia', D.wanted?.stars === 1 && !VB.hasTag('rpg_busy') && VB.nameTag === '§eNico', JSON.stringify(D.wanted));
+check('el guardia sale a cazarte', crime._t.hunters.get(G1.id)?.pid === p.id);
+crime.clearWanted(p);
+G1.teleport(at(170.5, 65, -170.5));
+
+const VC = npc('Elena', at(27.5, 65, -36.5), { gender: 'f' });
+crime.reportCrime(p, 'hurto', { witness: VC, victimName: 'Elena' });
+p.isValid = false; // se desconecta
+await advanceSec(27);
+check('desconectada: la denuncia queda pendiente', (store.W().pendingReports ?? []).some((r) => r.pid === p.id && r.type === 'hurto') && !D.wanted && !crime._t.alarms.size);
+check('el testigo se libera aunque no estés', !VC.hasTag('rpg_busy') && VC.nameTag === '§eElena');
+p.isValid = true; // vuelve
+await advanceSec(2);
+check('al volver: estrellas por la denuncia pendiente', D.wanted?.stars === 1 && !(store.W().pendingReports ?? []).length, JSON.stringify(D.wanted));
+crime.clearWanted(p);
+
+/* ------------------------------------------------------------------ */
+console.log('--- 18. NPCs de la justicia tras una recarga o una descarga ---');
+const Gh = npc('Ramiro', at(30.5, 65, -40.5), { guard: true });
+crime.startHunter(Gh, p, false);
+check('guardia de caza', Gh.hasTag('rpg_hunting') && lastEvent(Gh) === 'rpg:act_hunt');
+Gh.isValid = false;
+crime.clearWanted(p); // se libera a los cazadores mientras este no está cargado
+Gh.isValid = true;
+world.afterEvents.entityLoad.fire({ entity: Gh });
+check('cazador descargado: libre al volver a cargarse', !Gh.hasTag('rpg_hunting') && !Gh.hasTag('rpg_busy') && lastEvent(Gh) === 'rpg:act_idle' && Gh.getProperty('rpg:mood') === 0);
+Gh.remove();
+// Paseo de la vergüenza y abucheos cuando se recarga el mundo.
+D.wanted = { stars: 1, crimes: ['hurto'], settlementId: 's1', realmId: 'r1', decay: 0 };
+p.addTag('rpg_wanted');
+p.teleport(at(0.5, 65, 10.5));
+G1.teleport(at(1.5, 65, 10.5));
+p.applyDamage(2, { cause: 'entityAttack', damagingEntity: G1 });
+await advance(3);
+check('detenida para el cepo', D.justice?.state === 'escort' && D.justice.kind === 'stocks', JSON.stringify(D.justice));
+G1.teleport(at(4.5, 65, 4.5));
+await advance(4);
+check('paseo de la vergüenza con el guardia', D.justice?.state === 'humiliation' && lastEvent(G1) === 'rpg:act_sleep' && G1.hasTag('rpg_escort'), lastEvent(G1));
+const oldJeer = [...justice._t.humil.get(p.id).jeerers.values()];
+check('hay vecinos abucheando', oldJeer.length > 0 && oldJeer.every((e) => e.hasTag('rpg_jeer')));
+const evMark = new Map([G1, ...oldJeer].map((e) => [e, e._events.length]));
+justice._t.reload();
+justice.onPlayerSpawn(p, false);
+await advanceSec(11);
+check('tras recargar: el castigo sigue', D.justice?.state === 'humiliation');
+check('tras recargar: el guardia del paseo vuelve a su ronda', !G1.hasTag('rpg_escort') && !G1.hasTag('rpg_busy') && G1._events.slice(evMark.get(G1)).includes('rpg:act_idle') && lastEvent(G1) !== 'rpg:act_sleep', JSON.stringify(G1._events.slice(-3)));
+const hNow = justice._t.humil.get(p.id);
+check('tras recargar: los antiguos abucheadores se liberan (o se reclutan de nuevo)', oldJeer.every((e) => e._events.slice(evMark.get(e)).includes('rpg:act_idle') && (!e.hasTag('rpg_jeer') || hNow?.jeerers.has(e.id))));
+D.justice.left = 1;
+await advanceSec(2);
+check('castigo terminado tras la recarga', !D.justice && !justice.isRestricted(p));
+
+/* ------------------------------------------------------------------ */
+console.log('--- 19. Dos buscados, llaves y delitos durante la custodia ---');
+const pB = world.addPlayer('Bruno');
+const dB = { id: pB.id, name: 'Bruno', gender: 'm', race: 'humano', level: 5, xp: 0, gold: 0, karma: 0, ageTicks: 60 * 24000, stats: {}, mana: 50 };
+store.setP(pB, dB);
+pB.teleport(at(150.5, 65, 150.5));
+crime.giveJailKey(p); // una llave robada al carcelero por la calle, antes de que te detengan
+D.wanted = { stars: 1, crimes: ['hurto'], settlementId: 's1', realmId: 'r1', decay: 0 };
+p.addTag('rpg_wanted');
+p.teleport(at(10.5, 65, -20.5));
+G1.teleport(at(11.5, 65, -20.5));
+p.applyDamage(2, { cause: 'entityAttack', damagingEntity: G1 });
+await advance(3);
+check('escolta al cepo con G1', D.justice?.state === 'escort' && G1.hasTag('rpg_escort'));
+check('al detenerte te quitan la llave', !p._inv.slots.some((x) => x?.typeId === 'rpg:jail_key') && p._msgs.some((m) => m.includes('te quitan la llave')));
+pB.teleport(at(12.5, 65, -20.5));
+crime.reportCrime(pB, 'agresion_guardia', { victim: G1, witness: G1, known: true, victimName: 'Rodrigo' });
+crime.startHunter(G1, pB, true);
+await advanceSec(2);
+check('el guardia que escolta no sale a cazar a otro buscado', crime._t.hunters.get(G1.id)?.pid !== pB.id && !G1.hasTag('rpg_hunting') && lastEvent(G1) === 'rpg:act_escort_stocks', JSON.stringify(G1._events.slice(-2)));
+check('el otro buscado sí tiene estrellas', (dB.wanted?.stars ?? 0) >= 2);
+crime.clearWanted(pB);
+pB.isValid = false;
+crime.addStars(p, 'agresion', s1, r1, 'Pepa');
+check('delito durante la escolta al cepo: queda pendiente', D.justice?.pendingStars === 1 && p._msgs.some((m) => m.includes('también tendrás que responder')));
+G1.teleport(at(4.5, 65, 4.5));
+await advance(4);
+check('llega al cepo', D.justice?.state === 'humiliation' && D.justice.pendingStars === 1);
+D.justice.left = 1;
+await advanceSec(2);
+// Al terminar vuelve a estar buscada por lo pendiente (y el guardia, que está al lado, la detiene de nuevo).
+check('al acabar el cepo vuelven a buscarte por lo pendiente', p._msgs.some((m) => m.includes('cuentas pendientes')) && ((D.wanted?.stars === 1 && D.wanted.crimes.includes('agresion')) || (D.justice?.crimes ?? []).includes('agresion')), JSON.stringify(D.wanted ?? D.justice));
+justice.pardon(p);
+// Morir no borra las estrellas.
+D.wanted = { stars: 4, crimes: ['asesinato'], settlementId: 's1', realmId: 'r1', decay: 0 };
+p.teleport(at(300.5, 65, 300.5));
+p.applyDamage(999, { cause: 'fall' });
+check('morir no rebaja las estrellas', D.wanted?.stars === 4 && D.wanted.crimes.includes('asesinato'), JSON.stringify(D.wanted));
+p.applyDamage(999, { cause: 'lava' });
+check('ni muriendo varias veces', D.wanted?.stars === 4);
+// Prisión: un delito denunciado durante la escolta alarga la condena; una llave que no robaste no abre.
+D.wanted = { stars: 2, crimes: ['agresion_guardia'], settlementId: 's1', realmId: 'r1', decay: 0 };
+p.addTag('rpg_wanted');
+p.teleport(at(10.5, 65, -20.5));
+G1.teleport(at(11.5, 65, -20.5));
+p.applyDamage(2, { cause: 'entityAttack', damagingEntity: G1 });
+await advance(3);
+check('escolta a prisión', D.justice?.state === 'escort' && D.justice.kind === 'jail' && D.justice.total === 15 * 60);
+crime.addStars(p, 'hurto', s1, r1, 'Pepa');
+check('delito durante la escolta: +2 min de condena', D.justice.total === 15 * 60 + 120 && D.justice.left === 15 * 60 + 120);
+G1.teleport(at(31.5, 65, 38.5));
+await advance(4);
+check('en la celda con la condena alargada', D.justice?.state === 'jail' && D.justice.left >= 15 * 60 + 118, `${D.justice?.left}`);
+crime.giveJailKey(p); // una llave que te pasa otro jugador
+p.teleport(at(31.5, 65, 32.5));
+G1.teleport(at(31.5, 65, 80.5));
+const keyX = p._inv.slots.find((x) => x?.typeId === 'rpg:jail_key');
+world.afterEvents.itemUse.fire({ source: p, itemStack: keyX });
+check('una llave que no robaste al carcelero no abre', D.justice?.state === 'jail' && ow.getBlock(at(31, 65, 33)).typeId === 'minecraft:iron_bars' && p._ab.includes('no encaja'), p._ab);
+justice.pardon(p);
+check('indulto: fuera de la celda', !D.justice && !justice.isRestricted(p));
+const busyLeft = ow.getEntities({ type: 'rpg:npc', tags: ['rpg_busy'] }).map((e) => `${e.nameTag}:${e.getTags().join(',')}`);
+const after = justice.orphanSweep();
+check('nada queda huérfano', after === 0 && !G1.hasTag('rpg_busy'), `liberados ${after} ${JSON.stringify(busyLeft)}`);
+
+/* ------------------------------------------------------------------ */
 console.log('--- 15. Delitos sin ley / textos ---');
 p.teleport(at(900.5, 65, 900.5));
 const info = crime.reportCrime(p, 'hurto', {});
 check('fuera de cualquier asentamiento no hay denuncia', !info.witnessed && !D.wanted);
 check('todos los delitos tienen nombre y estrellas', Object.values(CRIMES).every((c) => c.name && c.stars.length === 3));
 check('mensajes en español sin emoji fuera del BMP', log.messages.every((m) => ![...m].some((ch) => ch.codePointAt(0) > 0xffff)));
+check('sin {masculino|femenino} sin resolver', !log.messages.some((m) => /\{[^{}]*\|[^{}]*\}/.test(m)));
+check('textos en femenino para una jugadora', !p._msgs.some((m) => /¡Ladrón!|Quieto ahí|Bienvenido a tu|Sigues expuesto|te da por muerto|¡visto!|cometer un agresión/.test(m)));
+check('artículo de cada delito', crimeWithArticle('agresion') === 'una agresión' && crimeWithArticle('hurto') === 'un hurto' && say('¡{Ladrón|Ladrona}!', { fem: true }) === '¡Ladrona!');
 
 const ptxt = justice.profileText(p);
 check('texto del Diario', ptxt.includes('Sigilo') && ptxt.includes('Antecedentes'));
