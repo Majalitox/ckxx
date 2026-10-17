@@ -63,6 +63,11 @@
         "minecraft:movement": {
           "value": 0.144
         }
+      },
+      "rpg:shaded": {
+        "minecraft:movement": {
+          "value": 0.24
+        }
       }
     },
     "components": {
@@ -353,6 +358,11 @@
         "set_property": {
           "rpg:sunlit": true
         },
+        "remove": {
+          "component_groups": [
+            "rpg:shaded"
+          ]
+        },
         "add": {
           "component_groups": [
             "rpg:sunlit"
@@ -366,6 +376,11 @@
         "remove": {
           "component_groups": [
             "rpg:sunlit"
+          ]
+        },
+        "add": {
+          "component_groups": [
+            "rpg:shaded"
           ]
         }
       }

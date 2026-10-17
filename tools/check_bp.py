@@ -470,6 +470,20 @@ def main():
             if e['description'].get('is_spawnable'):
                 check(keys.get(f'item.spawn_egg.entity.{ident}.name'), f'{code}.lang: falta el huevo de {ident}')
 
+    # Al quitar un grupo, el motor elimina sus componentes en vez de restaurar los de «components»:
+    # todo evento que quite un grupo que sobrescribe un componente base debe añadir otro que lo redefina.
+    for ident, (f, d, e) in ent.items():
+        base = set(e.get('components', {}))
+        cg = e.get('component_groups', {})
+        for name, ev in e.get('events', {}).items():
+            for act in group_actions(ev):
+                rem = act.get('remove', {}).get('component_groups', [])
+                add = act.get('add', {}).get('component_groups', [])
+                readd = set().union(*[set(cg.get(g, {})) for g in add]) if add else set()
+                for g in rem:
+                    lost = (set(cg.get(g, {})) & base) - readd
+                    check(not lost, f'{ident}: el evento {name} quita {g} y deja sin {sorted(lost)}')
+
     print(f'check_bp: {OKS[0]} comprobaciones correctas, {len(FAILS)} fallos.')
     for msg in FAILS:
         print('  FALLO:', msg)
@@ -492,6 +506,18 @@ def check_scales(ident, e, values):
         ev = e['events'][g]
         check(ev.get('add', {}).get('component_groups') == [g] and len(ev.get('remove', {}).get('component_groups', [])) == len(values) - 1,
               f'{ident}: el evento {g} debe quitar las otras escalas')
+
+
+def group_actions(ev):
+    out = []
+    if not isinstance(ev, dict):
+        return out
+    if 'add' in ev or 'remove' in ev:
+        out.append(ev)
+    for k in ('sequence', 'randomize'):
+        for x in ev.get(k, []) or []:
+            out += group_actions(x)
+    return out
 
 
 def png_blank(path):

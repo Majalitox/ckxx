@@ -501,8 +501,11 @@ def ai_groups(key, m):
     if ai.get('sun'):
         props['rpg:sunlit'] = {'type': 'bool', 'default': False, 'client_sync': False}
         groups['rpg:sunlit'] = {'minecraft:movement': {'value': round(m['speed'] * 0.6, 3)}}
-        events['rpg:sun_on'] = {'set_property': {'rpg:sunlit': True}, 'add': {'component_groups': ['rpg:sunlit']}}
-        events['rpg:sun_off'] = {'set_property': {'rpg:sunlit': False}, 'remove': {'component_groups': ['rpg:sunlit']}}
+        # Al quitar un grupo el motor elimina su componente (no restaura el base): a la sombra se añade
+        # un grupo con la velocidad normal para que el monstruo no se quede sin movimiento.
+        groups['rpg:shaded'] = {'minecraft:movement': {'value': m['speed']}}
+        events['rpg:sun_on'] = {'set_property': {'rpg:sunlit': True}, 'remove': {'component_groups': ['rpg:shaded']}, 'add': {'component_groups': ['rpg:sunlit']}}
+        events['rpg:sun_off'] = {'set_property': {'rpg:sunlit': False}, 'remove': {'component_groups': ['rpg:sunlit']}, 'add': {'component_groups': ['rpg:shaded']}}
     return groups, events, props
 
 
@@ -747,7 +750,7 @@ NPC_ACTS = [
     ('escort_jail', dict(kind='place', fam='rpg_wp_jail', speed=0.55, stop=1.5, urgent=True, near=32)),
 ]
 ACT_GROUPS = [f'rpg:act_{a}' for a, _ in NPC_ACTS]
-ROLE_GROUPS = ['rpg:wanderer', 'rpg:citizen', 'rpg:resident', 'rpg:staff', 'rpg:guard']
+ROLE_GROUPS = ['rpg:wanderer', 'rpg:citizen', 'rpg:resident', 'rpg:staff', 'rpg:guard', 'rpg:civil']
 
 # Caminos que los NPC prefieren (como el aldeano vanilla), con los bloques de sendero de las 10 culturas.
 NPC_PATH_BLOCKS = ['grass_path', 'gravel', 'moss_block', 'mossy_cobblestone', 'cobblestone', 'cobbled_deepslate', 'coarse_dirt',
@@ -764,6 +767,26 @@ NPC_AVOID_BLOCKS = ['bed', 'lectern', 'composter', 'grindstone', 'blast_furnace'
 
 def has_tag_test(tag, subject='other'):
     return {'test': 'has_tag', 'subject': subject, 'value': tag}
+
+
+def npc_avoid_monsters():
+    # Los NPC que no son guardias huyen siempre de los monstruos cercanos.
+    return {
+        'priority': P_AVOID, 'max_dist': 8, 'max_flee': 12, 'sprint_distance': 5, 'remove_target': False,
+        'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': 1.5,
+        'entity_types': [{'filters': {'all_of': [fam_test('monster'), fam_test('rpg_guard', 'self', '!=')]},
+                          'max_dist': 8, 'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': 1.5}],
+    }
+
+
+def with_act_defaults(c):
+    """Al quitar un grupo que sobrescribe un componente base, el motor elimina ese componente del todo
+    (no vuelve el valor base). Por eso cada rpg:act_* redefine los componentes que algún otro grupo
+    de actividad sobrescribe: velocidad, mirar al jugador y huir de los monstruos."""
+    c.setdefault('minecraft:movement', {'value': NPC_BASE_SPEED})
+    c.setdefault('minecraft:behavior.look_at_player', {'priority': P_LOOK_PLAYER, 'look_distance': 8, 'probability': 0.3})
+    c.setdefault('minecraft:behavior.avoid_mob_type', npc_avoid_monsters())
+    return c
 
 
 def act_components(name, spec):
@@ -852,6 +875,12 @@ def npc_json():
             'minecraft:home': {'restriction_radius': 3, 'restriction_type': 'random_movement'},
             'minecraft:behavior.move_towards_home_restriction': {'priority': P_HOME, 'speed_multiplier': 0.6},
         },
+        # Civiles: devuelve la familia y la vida base cuando se quita rpg:guard (al quitar un grupo el
+        # motor elimina sus componentes en lugar de restaurar los de la sección components).
+        'rpg:civil': {
+            'minecraft:type_family': {'family': ['npc', 'rpg_npc', 'mob']},
+            'minecraft:health': {'value': 40, 'max': 40},
+        },
         # Grupo permanente de los guardias (contrato §2.1).
         'rpg:guard': {
             'minecraft:type_family': {'family': ['npc', 'rpg_npc', 'rpg_guard', 'mob']},
@@ -869,18 +898,23 @@ def npc_json():
         },
     }
     for a, spec in NPC_ACTS:
-        groups[f'rpg:act_{a}'] = act_components(a, spec)
+        groups[f'rpg:act_{a}'] = with_act_defaults(act_components(a, spec))
     groups.update(sg)
 
     def act_event(a):
         g = f'rpg:act_{a}'
         return {'remove': {'component_groups': [x for x in ACT_GROUPS if x != g]}, 'add': {'component_groups': [g]}}
 
+    def civil(roles):
+        return roles if 'rpg:guard' in roles else roles + ['rpg:civil']
+
     def spawn_event(roles):
+        roles = civil(roles)
         return {'remove': {'component_groups': [r for r in ROLE_GROUPS if r not in roles] + [x for x in ACT_GROUPS if x != 'rpg:act_idle']},
                 'add': {'component_groups': roles + ['rpg:act_idle']}}
 
     def make_event(roles):
+        roles = civil(roles)
         return {'remove': {'component_groups': [r for r in ROLE_GROUPS if r not in roles]}, 'add': {'component_groups': roles}}
 
     events = {
@@ -938,13 +972,7 @@ def npc_json():
             {'cause': 'all', 'deals_damage': 'no'},
         ]},
         'minecraft:behavior.float': {'priority': P_FLOAT},
-        # Los NPC que no son guardias huyen siempre de los monstruos cercanos.
-        'minecraft:behavior.avoid_mob_type': {
-            'priority': P_AVOID, 'max_dist': 8, 'max_flee': 12, 'sprint_distance': 5, 'remove_target': False,
-            'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': 1.5,
-            'entity_types': [{'filters': {'all_of': [fam_test('monster'), fam_test('rpg_guard', 'self', '!=')]},
-                              'max_dist': 8, 'walk_speed_multiplier': 1.2, 'sprint_speed_multiplier': 1.5}],
-        },
+        'minecraft:behavior.avoid_mob_type': npc_avoid_monsters(),
         'minecraft:behavior.look_at_player': {'priority': P_LOOK_PLAYER, 'look_distance': 8, 'probability': 0.3},
         'minecraft:behavior.random_look_around': {'priority': P_IDLE},
         # Paseo de reserva (NPC antiguos sin grupo de actividad); cada rpg:act_* lo sustituye.

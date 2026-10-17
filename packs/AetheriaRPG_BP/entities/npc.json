@@ -92,6 +92,19 @@
           "speed_multiplier": 0.6
         }
       },
+      "rpg:civil": {
+        "minecraft:type_family": {
+          "family": [
+            "npc",
+            "rpg_npc",
+            "mob"
+          ]
+        },
+        "minecraft:health": {
+          "value": 40,
+          "max": 40
+        }
+      },
       "rpg:guard": {
         "minecraft:type_family": {
           "family": [
@@ -157,6 +170,45 @@
           "xz_dist": 8,
           "y_dist": 3,
           "interval": 120
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_work_field": {
@@ -211,6 +263,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_work_forge": {
@@ -265,6 +356,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_work_market": {
@@ -319,6 +449,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_tavern": {
@@ -373,6 +542,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_plaza": {
@@ -427,6 +635,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_home": {
@@ -481,6 +728,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_church": {
@@ -535,6 +821,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_sleep": {
@@ -552,6 +877,37 @@
           "priority": 7,
           "look_distance": 6,
           "probability": 0.05
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_patrol_0": {
@@ -606,6 +962,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_patrol_1": {
@@ -660,6 +1055,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_patrol_2": {
@@ -714,6 +1148,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_patrol_3": {
@@ -768,6 +1241,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_patrol_jail": {
@@ -822,6 +1334,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_alarm": {
@@ -886,6 +1437,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 80
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_jeer": {
@@ -932,6 +1522,45 @@
           "xz_dist": 3,
           "y_dist": 2,
           "interval": 100
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_flee": {
@@ -973,6 +1602,14 @@
           "xz_dist": 12,
           "y_dist": 3,
           "interval": 20
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
         }
       },
       "rpg:act_hunt": {
@@ -1021,6 +1658,45 @@
           "xz_dist": 6,
           "y_dist": 3,
           "interval": 60
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_escort_stocks": {
@@ -1081,6 +1757,45 @@
           "speed_multiplier": 0.55,
           "track_target": true,
           "require_complete_path": false
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:act_escort_jail": {
@@ -1141,6 +1856,45 @@
           "speed_multiplier": 0.55,
           "track_target": true,
           "require_complete_path": false
+        },
+        "minecraft:movement": {
+          "value": 0.5
+        },
+        "minecraft:behavior.look_at_player": {
+          "priority": 7,
+          "look_distance": 8,
+          "probability": 0.3
+        },
+        "minecraft:behavior.avoid_mob_type": {
+          "priority": 1,
+          "max_dist": 8,
+          "max_flee": 12,
+          "sprint_distance": 5,
+          "remove_target": false,
+          "walk_speed_multiplier": 1.2,
+          "sprint_speed_multiplier": 1.5,
+          "entity_types": [
+            {
+              "filters": {
+                "all_of": [
+                  {
+                    "test": "is_family",
+                    "subject": "other",
+                    "value": "monster"
+                  },
+                  {
+                    "test": "is_family",
+                    "subject": "self",
+                    "value": "rpg_guard",
+                    "operator": "!="
+                  }
+                ]
+              },
+              "max_dist": 8,
+              "walk_speed_multiplier": 1.2,
+              "sprint_speed_multiplier": 1.5
+            }
+          ]
         }
       },
       "rpg:scale_30": {
@@ -1623,6 +2377,7 @@
         "add": {
           "component_groups": [
             "rpg:citizen",
+            "rpg:civil",
             "rpg:act_idle"
           ]
         }
@@ -1633,6 +2388,7 @@
             "rpg:wanderer",
             "rpg:resident",
             "rpg:staff",
+            "rpg:civil",
             "rpg:act_work_field",
             "rpg:act_work_forge",
             "rpg:act_work_market",
@@ -1693,6 +2449,7 @@
         "add": {
           "component_groups": [
             "rpg:staff",
+            "rpg:civil",
             "rpg:act_idle"
           ]
         }
@@ -1728,6 +2485,7 @@
         "add": {
           "component_groups": [
             "rpg:resident",
+            "rpg:civil",
             "rpg:act_idle"
           ]
         }
@@ -1743,7 +2501,8 @@
         },
         "add": {
           "component_groups": [
-            "rpg:citizen"
+            "rpg:citizen",
+            "rpg:civil"
           ]
         }
       },
@@ -1752,7 +2511,8 @@
           "component_groups": [
             "rpg:wanderer",
             "rpg:resident",
-            "rpg:staff"
+            "rpg:staff",
+            "rpg:civil"
           ]
         },
         "add": {
@@ -1773,7 +2533,8 @@
         },
         "add": {
           "component_groups": [
-            "rpg:staff"
+            "rpg:staff",
+            "rpg:civil"
           ]
         }
       },
@@ -1788,7 +2549,8 @@
         },
         "add": {
           "component_groups": [
-            "rpg:resident"
+            "rpg:resident",
+            "rpg:civil"
           ]
         }
       },
