@@ -8,9 +8,10 @@ import { raceOf } from '../data/races.js';
 import { MOBS, BOSSES, ANIMALS, VILLAGERS, mobInfo } from '../data/mobs.js';
 import { RANKS, rk } from '../data/ranks.js';
 import { readRunes } from '../data/items.js';
-import { effect, damage, heal, health, hpOf, valid, heldItem, giveItem, particle, knockback } from '../util/compat.js';
+import { effect, damage, heal, health, hpOf, valid, heldItem, giveItem, particle, knockback, sound } from '../util/compat.js';
 import { randInt, chance, dist2D, clamp } from '../util/math.js';
 import { bountyOf } from './guild.js';
+import * as fx from './spellfx.js';
 
 export const hooks = { questProgress: undefined, onNpcDeath: undefined, onBossDeath: undefined, bossDamage: undefined, onDungeonKill: undefined, statusLine: undefined };
 
@@ -76,7 +77,18 @@ export function onHurt(ev) {
           const l = Math.hypot(dx, dz) || 1;
           knockback(target, dx / l, dz / l, 0.8, 0.3);
         }
-        if (runes.includes('trueno') && chance(0.15)) try { target.dimension.spawnEntity('minecraft:lightning_bolt', target.location); } catch {}
+        // Rayo con guion (sin minecraft:lightning_bolt: no quema al atacante, ni casas, ni convierte aldeanos/cerdos/creepers).
+        // Diferido ~10 ticks para no chocar con la invulnerabilidad tras el golpe cuerpo a cuerpo.
+        if (runes.includes('trueno') && chance(0.15)) {
+          system.runTimeout(() => {
+            try {
+              if (!valid(target)) return;
+              fx.lightning(target.dimension, target.location);
+              sound(target.dimension, 'ambient.weather.thunder', target.location, 0.6, 1.4);
+              damage(target, 5, valid(attacker) ? attacker : undefined, 'lightning');
+            } catch {}
+          }, 10);
+        }
       }
     }
   }
@@ -221,25 +233,45 @@ function onPlayerDeath(victim, killer) {
 /* Escalado de monstruos                                                */
 /* ------------------------------------------------------------------ */
 
+/** Llena la vida hasta el máximo efectivo (incluye health_boost). Sin efectos instantáneos: instant_health daña a los no muertos. */
+function fillHealth(entity) {
+  try {
+    if (!valid(entity)) return;
+    const h = health(entity);
+    if (!h) return;
+    try { h.resetToMaxValue(); } catch {}
+    if (h.currentValue < h.effectiveMax) h.setCurrentValue(h.effectiveMax);
+  } catch {}
+}
+
+/**
+ * Escala un monstruo según distancia al pueblo inicial y día. Idempotente: el nivel se fija una sola vez
+ * (rpg:tier, también 0), así que recargar el chunk o volver a llamarla no vuelve a tirar dados ni a curar.
+ */
 export function setupMob(entity) {
-  if (!cfg('mobScaling')) return;
-  const type = entity.typeId;
-  const info = MOBS[type];
-  if (!info) return;
-  const town = W().town?.center;
-  const distFromTown = town ? dist2D(entity.location, town) : 0;
-  const day = world.getDay();
-  const tier = clamp(Math.floor(distFromTown / 600) + Math.floor(day / 25) + (Math.random() < 0.08 ? 1 : 0), 0, 4);
-  if (tier <= 0) return;
-  try { entity.setDynamicProperty('rpg:tier', tier); } catch {}
-  if (type.startsWith('rpg:')) {
-    try { entity.triggerEvent('rpg:tier_' + tier); } catch {}
-  } else {
-    effect(entity, 'health_boost', 20000000, tier * 2 - 1, false);
-    effect(entity, 'instant_health', 1, 4, false);
-    if (tier >= 2) effect(entity, 'strength', 20000000, tier - 2, false);
-    if (tier >= 3) effect(entity, 'resistance', 20000000, 0, false);
-  }
+  try {
+    if (!cfg('mobScaling') || !valid(entity)) return;
+    const type = entity.typeId;
+    const info = MOBS[type];
+    if (!info) return;
+    if (entity.getDynamicProperty('rpg:tier') !== undefined) return;
+    const town = W().town?.center;
+    const distFromTown = town ? dist2D(entity.location, town) : 0;
+    const day = world.getDay();
+    const tier = clamp(Math.floor(distFromTown / 600) + Math.floor(day / 25) + (Math.random() < 0.08 ? 1 : 0), 0, 4);
+    try { entity.setDynamicProperty('rpg:tier', tier); } catch {}
+    if (tier <= 0) return;
+    if (type.startsWith('rpg:')) {
+      try { entity.triggerEvent('rpg:tier_' + tier); } catch {}
+    } else {
+      effect(entity, 'health_boost', 20000000, tier * 2 - 1, false);
+      if (tier >= 2) effect(entity, 'strength', 20000000, tier - 2, false);
+      if (tier >= 3) effect(entity, 'resistance', 20000000, 0, false);
+      // health_boost sube el máximo, no la vida actual: se rellena directamente un tick después.
+      fillHealth(entity);
+      system.runTimeout(() => fillHealth(entity), 1);
+    }
+  } catch {}
 }
 
 /** Texto informativo del enemigo al que mira el jugador. */

@@ -52,10 +52,11 @@ export function addXp(player, amount, source = 'other', silent = false) {
   while (d.level < MAX_LEVEL && d.xp >= xpNeed(d.level)) {
     d.xp -= xpNeed(d.level);
     d.level++;
-    d.sp = (d.sp ?? 0) + 1 + (d.level % 5 === 0 ? 1 : 0);
+    const gainedSp = 1 + (d.level % 5 === 0 ? 1 : 0);
+    d.sp = (d.sp ?? 0) + gainedSp;
     d.statPts = (d.statPts ?? 0) + 3;
     leveled = true;
-    onLevelUp(player, d);
+    onLevelUp(player, d, gainedSp);
   }
   if (d.level >= MAX_LEVEL) d.xp = Math.min(d.xp, xpNeed(MAX_LEVEL));
   if (leveled) checkGuildRank(player);
@@ -67,8 +68,8 @@ function sourceName(s) {
   return { combat: 'combate', quest: 'misión', dungeon: 'mazmorra', boss: 'jefe', hobby: 'pasatiempo', magic: 'magia', social: 'social', explore: 'exploración' }[s] ?? s;
 }
 
-function onLevelUp(player, d) {
-  title(player, `§6§l¡Nivel ${d.level}!`, '§e+3 puntos de estadística §7| §b+1 punto de habilidad');
+function onLevelUp(player, d, gainedSp = 1) {
+  title(player, `§6§l¡Nivel ${d.level}!`, `§e+3 puntos de estadística §7| §b+${gainedSp} ${gainedSp === 1 ? 'punto' : 'puntos'} de habilidad`);
   msg(player, `§6✦ ¡Has subido al nivel §l${d.level}§r§6! §7Usa tu Diario para repartir tus puntos.`);
   psound(player, 'random.levelup', 1, 1);
   try {

@@ -11,7 +11,7 @@ import {
   severityOf, ofRuler, say, crimeList, CRIMES,
   ARREST_LINES, ESCORT_STOCKS_LINES, ESCORT_JAIL_LINES, PROCLAMATIONS, JEERS, JEERS_BY_KIND, STOCKS_RELEASE,
   JAIL_ENTER, JAIL_FLAVOR, PATROL_START, PATROL_FOOD, KEY_HINT, KEY_CAUGHT, KEY_SUCCESS, JAIL_RELEASE,
-  BRIBE_OFFER, BRIBE_ACCEPT, NOBLE_FINE, HERO_PARDON, HERO_DEEDS, SHOUTS, TOMATO_REACT,
+  BRIBE_OFFER, BRIBE_ACCEPT, NOBLE_FINE, HERO_PARDON, HERO_DEEDS, SHOUTS, TOMATO_REACT, jailerWords,
 } from '../data/laws.js';
 import { confirm, guarded, info } from '../util/ui.js';
 import { particle, psound, sound, valid, giveItem, removeItem, countItem, effect } from '../util/compat.js';
@@ -820,7 +820,8 @@ function startPatrol(pt, prisoners) {
   pt.tried = new Set();
   try { jailer.triggerEvent('rpg:act_patrol_jail'); } catch {}
   try { jailer.addTag('rpg_busy'); jailer.addTag('rpg_jailer'); } catch {}
-  const line = pick(PATROL_START);
+  const jw = jailerWords(identOf(jailer));
+  const line = say(pick(PATROL_START), jw);
   for (const p of prisoners) {
     const j = getP(p)?.justice;
     msg(p, '§e' + line);
@@ -828,7 +829,7 @@ function startPatrol(pt, prisoners) {
       effect(p, 'saturation', 20, 0);
       msg(p, '§8El carcelero te da de comer en la boca, con muy poca delicadeza.');
     } else {
-      if (countItem(p, 'minecraft:bread') < 2 && giveItem(p, 'minecraft:bread', 1)) msg(p, '§8' + PATROL_FOOD);
+      if (countItem(p, 'minecraft:bread') < 2 && giveItem(p, 'minecraft:bread', 1)) msg(p, '§8' + say(PATROL_FOOD, jw));
       if (chance(0.5)) msg(p, KEY_HINT);
     }
   }
@@ -888,7 +889,7 @@ function tryKey(player, pt) {
   const rel = crime.relativePos(jailer, player);
   const z = crime.zoneFor(player, 'key', { behind: rel.behind, facing: rel.facing });
   crime.startMinigame(player, {
-    kind: 'key', label: `Robando la llave al carcelero ${crime.npcName(jailer)}`,
+    kind: 'key', label: `Robando la llave ${jailerWords(identOf(jailer)).al_carcelero} ${crime.npcName(jailer)}`,
     victim: jailer, maxDist: 3.6, zone: z.zone, speed: z.speed, exclude: new Set([jailer.id]),
     onSuccess: (g, seers) => keySuccess(player, seers),
     onFail: () => keyCaught(player, jailer),
@@ -927,7 +928,7 @@ function keyCaught(player, jailer) {
   const pt = patrols.get(j.sid);
   if (pt?.left > 0) endPatrol(pt);
   title(player, '§c' + EYE.OPEN, '§c¡Te han pillado!');
-  msg(player, `§c${GLYPH.shackles} ${pick(KEY_CAUGHT)} §7(+${law('tiedExtraSeconds')} s de condena)`);
+  msg(player, `§c${GLYPH.shackles} ${say(pick(KEY_CAUGHT), jailerWords(valid(jailer) ? identOf(jailer) : undefined))} §7(+${law('tiedExtraSeconds')} s de condena)`);
   if (valid(jailer)) npcSay(jailer, pick(['¡Ni lo sueñes, rata!', '¡Las manos donde pueda verlas!', gw(d, '¡Este intentaba escaparse! ¡Atadle!', '¡Esta intentaba escaparse! ¡Atadla!')]), {}, 16);
   psound(player, 'armor.equip_chain', 1, 0.6);
   dirty(player);
@@ -1256,7 +1257,7 @@ export function onProjectileHit(ev) {
     if (src && !crime.isGuard(hit) && now - (npcReact.get(hit.id) ?? -999) > 100) {
       npcReact.set(hit.id, now);
       if (npcReact.size > 200) npcReact.clear();
-      npcSay(hit, pick(TOMATO_REACT), {}, 16);
+      npcSay(hit, pick(TOMATO_REACT), { fem: getP(src)?.gender === 'f' }, 16);
       try { hit.setProperty('rpg:mood', 2); } catch {}
       system.runTimeout(() => { try { if (valid(hit) && !hit.hasTag('rpg_alarm')) hit.setProperty('rpg:mood', 0); } catch {} }, 60);
     }

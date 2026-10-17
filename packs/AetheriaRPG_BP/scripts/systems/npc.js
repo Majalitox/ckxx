@@ -17,7 +17,7 @@ import { CRIMES, STRICTNESS_NAMES } from '../data/laws.js';
 import { GOVERNMENTS, STRICTNESS } from '../data/cultures.js';
 import { genGuildBoard } from '../data/quests.js';
 import { ensureQuests } from './quests.js';
-import { reply, opening, moodOf, isFamilyRole, vars, genderize, lawValue } from './chat.js';
+import { reply, opening, moodOf, isFamilyRole, vars, genderize, lawDuration } from './chat.js';
 import * as social from './social.js';
 import * as economy from './economy.js';
 import * as life from './life.js';
@@ -302,6 +302,7 @@ export function relOf(d, ident) {
   }
   r.n = ident.name;
   r.r = ident.role;
+  if (ident.gender) r.g = ident.gender;
   return r;
 }
 
@@ -314,14 +315,15 @@ function pruneRel(d) {
 
 export function relTier(rel) {
   const p = rel.p ?? 0;
+  const f = rel.g === 'f'; // el nivel concuerda con el género del NPC ("Buena amiga")
   if (rel.partner) return { name: 'Pareja', c: '§d' };
-  if (p < -100) return { name: 'Enemigo', c: '§4' };
+  if (p < -100) return { name: f ? 'Enemiga' : 'Enemigo', c: '§4' };
   if (p < -20) return { name: 'Hostil', c: '§c' };
-  if (p < 20) return { name: 'Desconocido', c: '§7' };
-  if (p < 80) return { name: 'Conocido', c: '§f' };
-  if (p < 200) return { name: 'Amigo', c: '§a' };
-  if (p < 400) return { name: 'Buen amigo', c: '§2' };
-  if (p < 700) return { name: 'Mejor amigo', c: '§b' };
+  if (p < 20) return { name: f ? 'Desconocida' : 'Desconocido', c: '§7' };
+  if (p < 80) return { name: f ? 'Conocida' : 'Conocido', c: '§f' };
+  if (p < 200) return { name: f ? 'Amiga' : 'Amigo', c: '§a' };
+  if (p < 400) return { name: f ? 'Buena amiga' : 'Buen amigo', c: '§2' };
+  if (p < 700) return { name: f ? 'Mejor amiga' : 'Mejor amigo', c: '§b' };
   return { name: 'Inseparables', c: '§d' };
 }
 
@@ -793,7 +795,7 @@ async function diceGame(player, ident, entity) {
     changeRel(player, d, relOf(d, ident), -15);
     const line = sayTo(player, d, ident, '¡Estos dados están cargados! ¡Tramposo/a! Me quedo tu apuesta, y da gracias de que no llame a la guardia.');
     npcSpeak(player, entity, ident, line);
-    return info(player, '§c§l¡Pillado/a!'.replace('/a', d.gender === 'f' ? 'a' : 'o'), `§c${line}\n\n§7-${bet} oro`);
+    return info(player, (d.gender === 'f' ? '§c§l¡Pillada!' : '§c§l¡Pillado!'), `§c${line}\n\n§7-${bet} oro`);
   }
   let res;
   if (a > b) {
@@ -1097,9 +1099,9 @@ async function lawInfo(player, ident, entity) {
   for (const [k, c] of Object.entries(CRIMES)) lines.push(`§7• ${c.name}: §c${'★'.repeat(c.stars[st] ?? 1)}`);
   lines.push('');
   lines.push('§l§fCastigos§r');
-  lines.push(`§7• 1★ (delito menor): §f${lawValue('humiliationSeconds')} s en la picota de la plaza, atado/a y a tomatazos.`);
-  lines.push(`§7• 2-3★ (delito grave): §f${lawValue('jailMinutesSerious')} minutos de prisión.`);
-  lines.push(`§7• 4-5★ (asesinato): §f${lawValue('jailMinutesMurder')} minutos de prisión.`);
+  lines.push(`§7• 1★ (delito menor): §f${lawDuration('humiliationSeconds')} en la picota de la plaza, atado/a y a tomatazos.`);
+  lines.push(`§7• 2-3★ (delito grave): §f${lawDuration('jailMinutesSerious')} de prisión.`);
+  lines.push(`§7• 4-5★ (asesinato): §f${lawDuration('jailMinutesMurder')} de prisión.`);
   lines.push('§8Quien te vea robar correrá a avisar a la guardia. Si te buscan, entrégate o huye lejos.');
   const w = d.wanted;
   lines.push('');

@@ -146,13 +146,30 @@ export function lawValue(key) {
   return LAWS[key];
 }
 
+/**
+ * Duración vigente de una pena con su unidad, tal como la aplica la justicia: "15 minutos", "1 minuto",
+ * "90 segundos" (coma decimal; la prisión con el mismo tope maxJailMinutes que usa justice.js).
+ */
+export function lawDuration(key) {
+  let v = Number(lawValue(key));
+  if (!Number.isFinite(v) || v < 0) v = Number(LAWS[key]) || 0;
+  const minutes = /Minutes/.test(key);
+  if (minutes) {
+    const cap = Number(lawValue('maxJailMinutes'));
+    if (Number.isFinite(cap) && cap > 0) v = Math.min(v, cap);
+  }
+  v = Math.round(v * 100) / 100;
+  const unit = minutes ? (v === 1 ? 'minuto' : 'minutos') : v === 1 ? 'segundo' : 'segundos';
+  return `${String(v).replace('.', ',')} ${unit}`;
+}
+
 function lawPhrase(realm) {
   const st = Math.max(0, Math.min(2, Number(realm?.strictness ?? 1) || 0));
   const name = STRICTNESS_NAMES[st] ?? 'firme';
   const tax = Math.round(economy.salesTax(realm, undefined) * 100);
   const where = realm?.name ? social.realmArt(realm.name) : 'estas tierras';
-  return `En ${where} la justicia es ${name}: un hurto se paga con ${lawValue('humiliationSeconds')} segundos en la picota y una lluvia de tomates; ` +
-    `un delito grave, con ${lawValue('jailMinutesSerious')} minutos de cárcel; y la sangre, con ${lawValue('jailMinutesMurder')}. ` +
+  return `En ${where} la justicia es ${name}: un hurto se paga con ${lawDuration('humiliationSeconds')} en la picota y una lluvia de tomates; ` +
+    `un delito grave, con ${lawDuration('jailMinutesSerious')} de cárcel; y la sangre, con ${lawDuration('jailMinutesMurder')}. ` +
     (st === 0 ? 'Los guardias son blandos y a veces aceptan un "donativo". ' : st === 2 ? 'Aquí nadie se libra, ni con oro. ' : 'La guardia castiga lo que ve. ') +
     `El impuesto real es del ${tax} %.`;
 }

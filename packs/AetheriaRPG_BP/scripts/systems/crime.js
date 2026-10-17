@@ -36,7 +36,7 @@ export const hooks = {
 export function law(key) {
   try {
     const v = W().settings?.[key];
-    if (v !== undefined && typeof v === typeof LAWS[key]) return v;
+    if (v !== undefined && v !== null && typeof v === typeof LAWS[key] && (typeof v !== 'number' || Number.isFinite(v))) return v;
   } catch {}
   return LAWS[key];
 }
@@ -114,7 +114,7 @@ export function npcSay(e, text, ctx = {}, radius = 32, color) {
     dimId = e.dimension.id;
   } catch { return; }
   const guard = isGuard(e, ident);
-  const tag = guard ? `§9[${GLYPH.shield} ${ident?.job === 'carcelero' ? 'Carcelero' : 'Guardia'} ${name}]` : `${color ?? '§e'}[${name}]`;
+  const tag = guard ? `§9[${GLYPH.shield} ${ident?.job === 'carcelero' ? gw(ident, 'Carcelero', 'Carcelera') : 'Guardia'} ${name}]` : `${color ?? '§e'}[${name}]`;
   const line = `${tag} §f${say(text, ctx)}`;
   for (const p of world.getAllPlayers()) {
     try { if (p.dimension.id === dimId && dist(p.location, loc) <= radius) p.sendMessage(line); } catch {}
@@ -527,7 +527,7 @@ function stepGame(g) {
   if (sp.victim && !valid(sp.victim)) return abort(g, '§7Tu objetivo se ha esfumado.', 'gone');
   let anchor;
   try { anchor = sp.victim ? sp.victim.location : sp.anchor; } catch { return abort(g, '', 'gone'); }
-  if (anchor && dist(p.location, anchor) > (sp.maxDist ?? 3.5)) return abort(g, '§7Demasiada distancia: tienes que estar pegado a tu objetivo. §8(Robo cancelado)', 'far');
+  if (anchor && dist(p.location, anchor) > (sp.maxDist ?? 3.5)) return abort(g, `§7Demasiada distancia: tienes que estar ${gw(getP(p), 'pegado', 'pegada')} a tu objetivo. §8(Robo cancelado)`, 'far');
   if (isTied(p)) return abort(g, '', 'tied');
   let sneaking = false;
   try { sneaking = !!p.isSneaking; } catch {}
@@ -619,7 +619,7 @@ export function startPickpocket(player, target) {
   const asleep = isAsleep(target);
   const z = zoneFor(player, guard ? 'guard' : cls, { behind: rel.behind, facing: rel.facing, asleep });
   let label = `Robando a ${ident.name} ${guard ? `§9${GLYPH.shield} (guardia)` : CLS_LABEL[cls]}`;
-  label += asleep ? ' §b(dormido)' : rel.behind ? ' §a(de espaldas)' : rel.facing ? ' §c(te mira)' : '';
+  label += asleep ? ` §b(${gw(ident, 'dormido', 'dormida')})` : rel.behind ? ' §a(de espaldas)' : rel.facing ? ' §c(te mira)' : '';
   return startMinigame(player, {
     kind: 'pocket', label, victim: target, maxDist: 3.5, zone: z.zone, speed: z.speed,
     exclude: new Set([target.id]),
@@ -698,14 +698,21 @@ function pocketFail(player, target, reason) {
   if (!valid(target)) return;
   const ident = identOf(target) ?? {};
   try { target.lookAt(player.getHeadLocation()); } catch {}
+  let mood0;
+  try { mood0 = target.getProperty('rpg:mood'); } catch {}
   try { target.setProperty('rpg:mood', 2); } catch {}
+  // Si no sale corriendo a avisar (familia, fuera de la ley, guardia), el enfado se le pasa; si da la alarma,
+  // la cara de enfado se la quita freeNpc al terminar.
+  system.runTimeout(() => {
+    try { if (valid(target) && !target.hasTag('rpg_busy') && target.getProperty('rpg:mood') === 2) target.setProperty('rpg:mood', typeof mood0 === 'number' && mood0 !== 2 ? mood0 : 0); } catch {}
+  }, 100);
   try { target.setDynamicProperty('rpg:robbed_day', world.getDay()); } catch {} // ya está alerta: hoy no se deja
   if (isFamilyOf(target, player, ident)) {
     npcSay(target, gw(d, '¡Hijo! ¿¡Me estás robando a mí!? ¡Devuélvemelo ahora mismo!', '¡Hija! ¿¡Me estás robando a mí!? ¡Devuélvemelo ahora mismo!'));
     title(player, '§c' + EYE.OPEN, '§c¡Te han pillado!');
     return;
   }
-  const lead = reason === 'timeout' ? '§7Te has entretenido demasiado... ' : '';
+  const lead = reason === 'timeout' ? `§7Te has ${gw(d, 'entretenido', 'entretenida')} demasiado... ` : '';
   npcSay(target, pick(VICTIM_NOTICE), { fem: d?.gender === 'f' });
   if (lead) msg(player, lead + `§c${ident.name} ha notado tu mano.`);
   reportCrime(player, ident.cls === 'alta' ? 'robo_noble' : 'hurto', { victim: target, witness: target, value: 0, victimName: ident.name });
@@ -1069,9 +1076,10 @@ function fileReport(a, guard) {
   if (!player || !getP(player)) { queueReport(a); return; } // desconectado (o sin datos aún): se le aplicará al volver
   const s = getSettlementSafe(a.sid);
   const realm = realmOfSafe(s);
-  if (valid(a.e)) npcSay(a.e, pick(REPORT_LINES), { thief: player.name, crime: crimeWithArticle(a.type) }, 24);
+  const wIdent = valid(a.e) ? identOf(a.e) : undefined;
+  if (valid(a.e)) npcSay(a.e, pick(REPORT_LINES), { thief: player.name, crime: crimeWithArticle(a.type), fem: getP(player)?.gender === 'f' }, 24);
   if (guard && valid(guard)) {
-    npcSay(guard, pick(GUARD_ACK), {}, 24);
+    npcSay(guard, pick(GUARD_ACK), { ciudadano: gw(wIdent, 'ciudadano', 'ciudadana') }, 24);
     startHunter(guard, player, false);
   }
   addStars(player, a.type, s, realm, a.name);

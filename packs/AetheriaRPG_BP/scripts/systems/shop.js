@@ -40,7 +40,7 @@ function headerText(player, d, c) {
   if (c.s?.name) lines.push(`§7Mercado de §f${c.s.name}${c.realm?.name ? ` §7(${c.realm.name})` : ''}`);
   if (ev) lines.push(`§e¡${ev.name}! §7${pick(ev.lines)}`);
   if (tax > 0) lines.push(`§7Impuesto real: §f${tax} %`);
-  else if (d.social?.noble && c.realm) lines.push('§6Exento/a de impuestos por tu título.'.replace('/a', d.gender === 'f' ? 'a' : 'o'));
+  else if (d.social?.noble && c.realm) lines.push(`§6${d.gender === 'f' ? 'Exenta' : 'Exento'} de impuestos por tu título.`);
   const pf = economy.personalFactor(d, 'buy', c.realm);
   if (Math.abs(pf - 1) >= 0.03) lines.push(`§7Trato personal (clase, fama, raza): §f×${pf.toFixed(2)}`);
   return lines.join('\n');

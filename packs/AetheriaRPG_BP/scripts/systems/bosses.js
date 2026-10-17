@@ -4,8 +4,9 @@ import { getP, dirty } from '../core/store.js';
 import { addXp, addGold, addGuildPoints, addKarma, msg, title } from '../core/progression.js';
 import { BOSSES } from '../data/mobs.js';
 import { rkB } from '../data/ranks.js';
-import { particle, sound, damage, effect, knockback, valid, hpOf, heal, getBlock, cmd } from '../util/compat.js';
+import { particle, sound, damage, effect, knockback, valid, hpOf, heal, getBlock, cmd, isSolid } from '../util/compat.js';
 import { dist, rand, randInt, pick } from '../util/math.js';
+import { lineOfSight, bodyCenter } from './spellfx.js';
 
 /** Ganchos que asigna main.js (p. ej. registrar la hazaña). */
 export const hooks = {
@@ -65,13 +66,68 @@ function playersNear(boss, r) {
   return world.getAllPlayers().filter((p) => p.dimension.id === boss.dimension.id && dist(p.location, boss.location) <= r && playable(p));
 }
 
+/** Tope de esbirros vivos alrededor de un jefe (evita la acumulación sin fin en combates largos). */
+export const MINION_CAP = 6;
+const MINION_RADIUS = 32;
+
+function minionsNear(boss) {
+  try {
+    return boss.dimension.getEntities({ location: boss.location, maxDistance: MINION_RADIUS, tags: ['rpg_minion'] }).filter(valid).length;
+  } catch { return MINION_CAP; } // si no se puede contar, no invoca
+}
+
+/** Invoca hasta n esbirros sin pasar del tope. Devuelve cuántos aparecieron (0 → la IA usa otra habilidad). */
 function spawnAround(boss, type, n, r = 3) {
-  for (let i = 0; i < n; i++) {
+  const room = Math.min(n, MINION_CAP - minionsNear(boss));
+  let made = 0;
+  for (let i = 0; i < room; i++) {
     try {
       const e = boss.dimension.spawnEntity(type, { x: boss.location.x + rand(-r, r), y: boss.location.y + 0.5, z: boss.location.z + rand(-r, r) });
-      e.addTag('rpg_minion');
+      try { e.addTag('rpg_minion'); } catch {}
+      made++;
     } catch {}
   }
+  return made;
+}
+
+/** Línea de visión de la cabeza de `from` al centro del cuerpo de `to` (sin bloques sólidos en medio). */
+function canSee(from, to) {
+  try {
+    let head;
+    try { head = from.getHeadLocation(); } catch { head = { x: from.location.x, y: from.location.y + 1.5, z: from.location.z }; }
+    const c = bodyCenter(to) ?? { x: to.location.x, y: to.location.y + 1, z: to.location.z };
+    return lineOfSight(from.dimension, head, c);
+  } catch { return false; }
+}
+
+/** Altura (bloques) que ocupa el Liche al teletransportarse. */
+const LICH_H = 2.6;
+const LICH_R = 0.4;
+
+/** ¿Cabe una entidad de radio r y altura h con los pies en `loc`? (comprobación propia además de tryTeleport). */
+function fits(dim, loc, r, h) {
+  for (const [ox, oz] of [[0, 0], [-r, -r], [r, -r], [-r, r], [r, r]]) {
+    for (let y = loc.y + 0.05; y < loc.y + h; y += 0.9) {
+      const b = getBlock(dim, { x: Math.floor(loc.x + ox), y: Math.floor(y), z: Math.floor(loc.z + oz) });
+      if (!b || isSolid(b)) return false;
+    }
+    const top = getBlock(dim, { x: Math.floor(loc.x + ox), y: Math.floor(loc.y + h - 0.05), z: Math.floor(loc.z + oz) });
+    if (!top || isSolid(top)) return false;
+  }
+  return true;
+}
+
+/** Teletransporte seguro del Liche junto a `t`: varios intentos, nunca dentro de bloques. Devuelve el destino o undefined. */
+function lichBlink(boss, t) {
+  const dim = boss.dimension;
+  for (let i = 0; i < 8; i++) {
+    const dest = { x: t.location.x + rand(-3, 3), y: t.location.y + (i % 2), z: t.location.z + rand(-3, 3) };
+    if (!fits(dim, dest, LICH_R, LICH_H)) continue;
+    let ok = false;
+    try { ok = boss.tryTeleport(dest, { checkForBlocks: true }); } catch { ok = false; }
+    if (ok) return dest;
+  }
+  return undefined;
 }
 
 function bolt(boss, target, dmg, rgb, extra) {
@@ -121,8 +177,7 @@ function meteors(boss, targets, n, dmg) {
 
 const AI = {
   'rpg:goblin_king'(boss, ps, phase2) {
-    if (Math.random() < 0.5) {
-      spawnAround(boss, 'rpg:goblin', phase2 ? 4 : 2);
+    if (Math.random() < 0.5 && spawnAround(boss, 'rpg:goblin', phase2 ? 4 : 2) > 0) {
       sound(boss.dimension, 'mob.evocation_illager.prepare_summon', boss.location, 1, 1.2);
       return 7;
     }
@@ -144,11 +199,18 @@ const AI = {
       }
       return 6;
     }
-    if (r < 0.65) {
-      spawnAround(boss, 'rpg:giant_spider', phase2 ? 2 : 1);
-      return 8;
+    if (r < 0.65 && spawnAround(boss, 'rpg:giant_spider', phase2 ? 2 : 1) > 0) return 8;
+    const poison = (p) => bolt(boss, p, 6, [0.4, 0.9, 0.2], (t) => effect(t, 'poison', 120, 1));
+    if (phase2) {
+      for (const p of ps) cast(boss, 'naturaleza', 'barrage', p, 6, { tier: 2, name: 'Veneno de la Reina' }, () => poison(p));
+    } else {
+      // Una sola maldición (en cono, alcanza a varios): una por jugador se acumulaba con el número de jugadores.
+      const seen = ps.filter((p) => canSee(boss, p));
+      if (seen.length) {
+        const t = pick(seen);
+        cast(boss, 'naturaleza', 'curse', t, 6, { tier: 2, name: 'Veneno de la Reina' }, () => poison(t));
+      }
     }
-    for (const p of ps) cast(boss, 'naturaleza', phase2 ? 'barrage' : 'curse', p, 6, { tier: 2, name: 'Veneno de la Reina' }, () => bolt(boss, p, 6, [0.4, 0.9, 0.2], (t) => effect(t, 'poison', 120, 1)));
     return 4;
   },
   'rpg:ancient_golem'(boss, ps, phase2) {
@@ -164,16 +226,19 @@ const AI = {
   },
   'rpg:lich'(boss, ps, phase2) {
     const r = Math.random();
-    if (r < 0.3) {
-      spawnAround(boss, Math.random() < 0.5 ? 'minecraft:skeleton' : 'rpg:skeleton_knight', phase2 ? 4 : 3);
+    if (r < 0.3 && spawnAround(boss, Math.random() < 0.5 ? 'minecraft:skeleton' : 'rpg:skeleton_knight', phase2 ? 4 : 3) > 0) {
       sound(boss.dimension, 'mob.evocation_illager.prepare_summon', boss.location, 1, 0.8);
       return 8;
     }
     if (r < 0.5 && ps.length) {
       const t = pick(ps);
-      try { boss.teleport({ x: t.location.x + rand(-3, 3), y: t.location.y, z: t.location.z + rand(-3, 3) }); } catch {}
-      particle(boss.dimension, 'minecraft:portal_reverse_particle', boss.location);
-      return 3;
+      const before = { ...boss.location };
+      const dest = lichBlink(boss, t);
+      if (dest) {
+        particle(boss.dimension, 'minecraft:portal_reverse_particle', before);
+        particle(boss.dimension, 'minecraft:portal_reverse_particle', dest);
+        return 3;
+      }
     }
     if (phase2 && ps.length && Math.random() < 0.4) {
       const t = pick(ps);
@@ -196,7 +261,7 @@ const AI = {
       cast(boss, 'fuego', 'lance', t, 16, { tier: 4, name: 'Lanza del Abismo' }, () => bolt(boss, t, 14, [1, 0.3, 0], (x) => { try { x.setOnFire(4, true); } catch {} }));
       return 4;
     }
-    if (r < 0.65) { spawnAround(boss, 'rpg:fire_imp', phase2 ? 4 : 2); return 8; }
+    if (r < 0.65 && spawnAround(boss, 'rpg:fire_imp', phase2 ? 4 : 2) > 0) return 8;
     slam(boss, 6, 16, [1, 0.3, 0]);
     for (const p of playersNear(boss, 6)) try { p.setOnFire(6, true); } catch {}
     return 5;
@@ -242,7 +307,7 @@ const AI = {
       particle(boss.dimension, 'minecraft:sonic_explosion', boss.location);
       return 5;
     }
-    if (r < 0.45) { spawnAround(boss, 'rpg:demon_knight', phase2 ? 3 : 2); return 9; }
+    if (r < 0.45 && spawnAround(boss, 'rpg:demon_knight', phase2 ? 3 : 2) > 0) return 9;
     if (r < 0.7) {
       for (const p of ps) cast(boss, 'oscuridad', 'barrage', p, 20, { tier: 4, name: 'Saetas del Vacío' }, () => bolt(boss, p, 22, [0.3, 0, 0.5], (t) => effect(t, 'wither', 100, 2)));
       heal(boss, 20);
@@ -285,13 +350,17 @@ export function casterTick() {
       try { list = dim.getEntities({ type }); } catch { continue; }
       for (const e of list) {
         if (!valid(e) || now < (casterNext.get(e.id) ?? 0)) continue;
-        let best;
-        let bd = c.range;
+        // El más cercano dentro del alcance y a la vista (no lanzan a través de paredes ni suelos).
+        const near = [];
         for (const p of players) {
           const dd = dist(p.location, e.location);
-          if (dd <= bd) { bd = dd; best = p; }
+          if (dd <= c.range) near.push({ p, dd });
         }
-        if (!best || Math.random() >= c.chance) continue;
+        if (!near.length || Math.random() >= c.chance) continue;
+        near.sort((a, b) => a.dd - b.dd);
+        let best;
+        for (let i = 0; i < near.length && i < 3; i++) if (canSee(e, near[i].p)) { best = near[i].p; break; }
+        if (!best) continue;
         const tier = Math.max(0, Math.min(4, Number(e.getDynamicProperty?.('rpg:tier') ?? 0)));
         cast(e, pick(c.els), pick(c.kinds), best, c.power + tier * 2, { tier: Math.min(3, 1 + Math.floor(tier / 2)) });
         casterNext.set(e.id, now + 60);

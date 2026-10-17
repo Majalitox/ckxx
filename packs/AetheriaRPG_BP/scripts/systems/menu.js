@@ -1,7 +1,7 @@
 // Diario del Aventurero: menú principal con perfil, magia, misiones, gremio, familia, relaciones, etc.
 import { world } from '@minecraft/server';
 import { getP, dirty } from '../core/store.js';
-import { cfg, setCfg, DEFAULTS, SETTING_LABELS } from '../core/config.js';
+import { cfg, setCfg, DEFAULTS, SETTING_LABELS, parseSetting } from '../core/config.js';
 import { msg } from '../core/progression.js';
 import {
   stat, STAT_NAMES, STAT_DESC, maxMana, manaRegen, stageName, ageYears, growth, magicRank, powerRank, affinity, talent, xpNeed,
@@ -21,6 +21,8 @@ import { BOSSES } from '../data/mobs.js';
 import { rebirth } from './birth.js';
 import { atlasText } from './settlements.js';
 import { profileText as stealthText } from './justice.js';
+import * as crime from './crime.js';
+import { LAWS } from '../data/laws.js';
 import { journalPage as socialPage } from './social.js';
 import { buttons, info, confirm, ask, guarded } from '../util/ui.js';
 import { bar, fmt, hearts } from '../util/text.js';
@@ -245,7 +247,7 @@ async function familyMenu(player) {
   const h = d.family?.house;
   const lines = (d.family?.members ?? []).map((m) => {
     const rel = d.rel?.[m.id];
-    return `${m.dead ? '§8✝ ' : '§f'}${m.name} §7(${ROLE_NAMES[m.role]}${m.ident?.age === 'child' ? ', menor' : ''})${m.dead ? ' §8- fallecido/a' : rel ? ` ${relTier(rel).c}${relTier(rel).name}` : ''}`;
+    return `${m.dead ? '§8✝ ' : '§f'}${m.name} §7(${ROLE_NAMES[m.role]}${m.ident?.age === 'child' ? ', menor' : ''})${m.dead ? (m.ident?.gender === 'f' ? ' §8- fallecida' : ' §8- fallecido') : rel ? ` ${relTier(rel).c}${relTier(rel).name}` : ''}`;
   });
   const sp = spouseName(d);
   if (sp) lines.push(`§d♥ ${sp} §7(pareja)`);
@@ -307,15 +309,58 @@ async function dungeonMenu(player) {
   await info(player, '§l§5Mazmorras', body + '\n\n§7Busca el pozo con columnas de piedra musgosa y faroles de almas. Baja por la escalera.\n§7¡No entres en mazmorras de rango muy superior al tuyo!');
 }
 
+/** No se puede renacer bajo custodia (detenido, cepo, cárcel, fuga) ni con estrellas de búsqueda. */
+function canRebirth(player) {
+  const d = getP(player);
+  if (!d) return true;
+  if (d.justice) return false;
+  if ((d.wanted?.stars ?? 0) > 0) return false;
+  for (const t of ['rpg_arrested', 'rpg_humiliated', 'rpg_jailed', 'rpg_tied']) {
+    try { if (player.hasTag(t)) return false; } catch {}
+  }
+  return true;
+}
+
+const NO_REBIRTH = '§cNo puedes renacer mientras cumples condena o te buscan.';
+
 async function optionsMenu(player) {
   const d = getP(player);
   await buttons(player, '§lOpciones', '§7Ajustes personales.', [
     { text: `HUD en pantalla: ${d.hud === false ? '§cNO' : '§aSÍ'}`, fn: () => { d.hud = d.hud === false; dirty(player); } },
     { text: '§cRenacer (borrar personaje)', fn: async () => {
-      if (await confirm(player, '§c§lRenacer', '§fBorrarás tu personaje y volverás a nacer con otra raza, elemento y familia.\n§c¡Esto no se puede deshacer!')) rebirth(player);
+      if (!canRebirth(player)) return msg(player, NO_REBIRTH);
+      if (!(await confirm(player, '§c§lRenacer', '§fBorrarás tu personaje y volverás a nacer con otra raza, elemento y familia.\n§c¡Esto no se puede deshacer!'))) return;
+      // El estado pudo cambiar mientras el formulario estaba abierto (un guardia te ha detenido).
+      if (!canRebirth(player)) return msg(player, NO_REBIRTH);
+      rebirth(player);
     } },
     { text: '§7Volver', fn: () => mainMenu(player) },
   ]);
+}
+
+/** Valor vigente de una pena (crime.law: ajustes del administrador) o el de serie. */
+function lawNum(key) {
+  let v;
+  try { v = Number(crime.law?.(key)); } catch {}
+  if (!Number.isFinite(v) || v < 0) v = Number(LAWS?.[key]);
+  return Number.isFinite(v) && v >= 0 ? v : 0;
+}
+
+const num = (v) => String(Math.round(v * 100) / 100).replace('.', ',');
+const unit = (v, one, many) => `${num(v)} ${v === 1 ? one : many}`;
+
+/** Duración del cepo ("1 minuto", "90 segundos"). */
+function stocksText() {
+  const s = lawNum('humiliationSeconds');
+  return s >= 60 && s % 60 === 0 ? unit(s / 60, 'minuto', 'minutos') : unit(s, 'segundo', 'segundos');
+}
+
+/** Minutos de cárcel con el mismo tope (maxJailMinutes) que aplica la justicia. */
+function jailText(key) {
+  let m = lawNum(key);
+  const cap = lawNum('maxJailMinutes');
+  if (cap > 0) m = Math.min(m, cap);
+  return unit(m, 'minuto', 'minutos');
 }
 
 async function guide(player) {
@@ -341,7 +386,7 @@ async function guide(player) {
     '§6§lEconomía y regateo',
     '§fLos precios cambian según el pueblo, el día, tu clase social y tu fama. En las tiendas puedes regatear: ofrece menos y mira cómo reacciona el mercader.',
     '§6§lRobos y justicia',
-    '§fAgáchate y toca a alguien para robarle del bolsillo (minijuego). El ojo del HUD indica si te observan: cerrado = nadie mira, entreabierto = alguien te ve, abierto = te han pillado. Un testigo con (!) correrá al guardia: delito menor = 1 minuto en el cepo (te tirarán tomates), grave = 15 min de cárcel, asesinato = 30 min. Puedes robarle la llave al carcelero para fugarte.',
+    `§fAgáchate y toca a alguien para robarle del bolsillo (minijuego). El ojo del HUD indica si te observan: cerrado = nadie mira, entreabierto = alguien te ve, abierto = te han pillado. Un testigo con (!) correrá al guardia: delito menor = ${stocksText()} en el cepo (te tirarán tomates), grave = ${jailText('jailMinutesSerious')} de cárcel, asesinato = ${jailText('jailMinutesMurder')}. Puedes robarle la llave al carcelero para fugarte.`,
     '§6§lClase social y hazañas',
     '§fTu origen, tu riqueza, tus títulos y tus hazañas deciden tu clase. Los nobles te tratan distinto que los campesinos, y tu fama (o infamia) llega antes que tú a cada reino.',
   ].join('\n'));
@@ -377,9 +422,13 @@ async function settingsMenu(player) {
     setCfg(k, !cfg(k));
   } else {
     const v = await ask(player, SETTING_LABELS[k], `Valor actual: ${cfg(k)} (por defecto ${DEFAULTS[k]})`, String(cfg(k)));
-    if (v !== undefined && v.trim() !== '' && !isNaN(Number(v))) setCfg(k, Number(v));
+    if (v !== undefined) {
+      const parsed = parseSetting(k, v);
+      if (parsed.ok) setCfg(k, parsed.value);
+      else msg(player, '§cValor no válido: debe ser un número igual o mayor que 0.');
+    }
   }
   return settingsMenu(player);
 }
 
-export { isAdmin, g };
+export { isAdmin, g, canRebirth };

@@ -20,12 +20,12 @@
 //   /scriptevent rpg:wanted 3             → fijar estrellas de búsqueda (0 = perdón)
 //   /scriptevent rpg:pardon               → indulto total (sales del cepo o de la cárcel)
 import { getP, dirty } from '../core/store.js';
-import { cfg, setCfg, DEFAULTS } from '../core/config.js';
+import { cfg, setCfg, DEFAULTS, isSetting, parseSetting } from '../core/config.js';
 import { addXp, addGold, addKarma, msg, checkGuildRank } from '../core/progression.js';
 import { RACES } from '../data/races.js';
 import { ELEMENTS } from '../data/elements.js';
 import { MAGIC_XP, GUILD_POINTS } from '../data/ranks.js';
-import { openJournal } from './menu.js';
+import { openJournal, canRebirth } from './menu.js';
 import { rebirth } from './birth.js';
 import { tryGenerate } from './dungeons.js';
 import { summonBoss } from './bosses.js';
@@ -44,12 +44,20 @@ export function onScriptEvent(ev) {
   const n = Number(arg);
   switch (id) {
     case 'rpg:menu': return openJournal(player);
-    case 'rpg:reset': return rebirth(player);
+    case 'rpg:reset':
+      if (!canRebirth(player)) return msg(player, '§cNo puedes renacer mientras cumples condena o te buscan. §7(Antes: /scriptevent rpg:pardon)');
+      return rebirth(player);
     case 'rpg:letter': return letterTick();
     case 'rpg:set': {
       const [k, v] = arg.split(/\s+/);
-      if (!(k in DEFAULTS)) return msg(player, `§cAjuste desconocido. Opciones: ${Object.keys(DEFAULTS).join(', ')}`);
-      setCfg(k, typeof DEFAULTS[k] === 'boolean' ? v === 'true' || v === '1' : Number(v));
+      if (!isSetting(k)) return msg(player, `§cAjuste desconocido. Opciones: ${Object.keys(DEFAULTS).join(', ')}`);
+      const parsed = parseSetting(k, v);
+      if (!parsed.ok) {
+        return msg(player, typeof DEFAULTS[k] === 'boolean'
+          ? `§cValor no válido para ${k}. Usa true o false. §7(Actual: ${cfg(k)})`
+          : `§cValor no válido para ${k}: debe ser un número igual o mayor que 0. §7(Actual: ${cfg(k)})`);
+      }
+      setCfg(k, parsed.value);
       return msg(player, `§a${k} = ${cfg(k)}`);
     }
     case 'rpg:dungeon': return tryGenerate(player, true, Math.max(0, Math.min(8, n || 0)));

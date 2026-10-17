@@ -876,9 +876,22 @@ await advance(4);
   world.beforeEvents.playerInteractWithEntity.fire({ player: p, target: g, cancel: false });
   await advance(10);
   const lawForm = ui.shown.find((f) => /La ley de/.test(f.title ?? ''));
-  check('INT-6: el guardia explica las penas configuradas', /90 s/.test(lawForm?.body ?? '') && /20 minutos/.test(lawForm?.body ?? '') && /45 minutos/.test(lawForm?.body ?? ''), lawForm?.body?.slice(0, 300));
+  check('INT-6: el guardia explica las penas configuradas', /90 segundos/.test(lawForm?.body ?? '') && /20 minutos/.test(lawForm?.body ?? '') && /45 minutos/.test(lawForm?.body ?? ''), lawForm?.body?.slice(0, 300));
   g.remove();
+  // Singular, coma decimal y el mismo tope de prisión que aplica la justicia (maxJailMinutes = 45).
+  store.W().settings = { ...(set0 ?? {}), humiliationSeconds: 1, jailMinutesSerious: 1, jailMinutesMurder: 60 };
+  check('INT-6: "1 minuto", "1 segundo" y la pena tope de verdad', chat.lawDuration('jailMinutesSerious') === '1 minuto'
+    && chat.lawDuration('humiliationSeconds') === '1 segundo' && chat.lawDuration('jailMinutesMurder') === '45 minutos', chat.lawDuration('jailMinutesMurder'));
+  store.W().settings = { ...(set0 ?? {}), jailMinutesSerious: 2.5 };
+  check('INT-6: decimales en español', chat.lawDuration('jailMinutesSerious') === '2,5 minutos', chat.lawDuration('jailMinutesSerious'));
   store.W().settings = set0;
+
+  // Género: niveles de relación de una NPC y textos que no pasan por genderize.
+  check('relación con una NPC en femenino', npc.relTier({ p: 300, g: 'f' }).name === 'Buena amiga' && npc.relTier({ p: 300, g: 'm' }).name === 'Buen amigo'
+    && npc.relTier({ p: 0, g: 'f' }).name === 'Desconocida', npc.relTier({ p: 300, g: 'f' }).name);
+  const own = ['systems/npc.js', 'systems/shop.js', 'systems/chat.js', 'systems/life.js', 'systems/social.js', 'systems/economy.js', 'systems/birth.js', 'systems/passives.js'];
+  const rawSwap = own.filter((f) => /\.replace\(\s*['"`]\/a['"`]/.test(fs.readFileSync('./scripts/' + f, 'utf8')));
+  check('sin ".replace(\'/a\', …)" (daba "Pilladoa"/"Exentoo")', rawSwap.length === 0, rawSwap.join(','));
 }
 
 for (const pl of world.getAllPlayers()) for (const m of pl._msgs ?? []) lintText(m, 'mensaje a ' + pl.name);

@@ -60,9 +60,45 @@ export const SETTING_LABELS = {
   spellTitles: 'Títulos de hechizos legendarios y reacciones',
 };
 
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+/** ¿Es un ajuste conocido? (sin nombres heredados como "constructor"). */
+export function isSetting(key) {
+  return typeof key === 'string' && has(DEFAULTS, key);
+}
+
+/**
+ * Valor vigente de un ajuste. Un valor guardado inválido (NaN se guarda como null en JSON, tipo distinto
+ * del de serie, número no finito) cuenta como no fijado y devuelve el de serie.
+ */
 export function cfg(key) {
-  const s = W().settings ?? {};
-  return s[key] !== undefined ? s[key] : DEFAULTS[key];
+  let s;
+  try { s = W().settings; } catch {}
+  const def = DEFAULTS[key];
+  if (!s || !has(s, key)) return def;
+  const v = s[key];
+  if (v === undefined || v === null) return def;
+  if (def !== undefined && typeof v !== typeof def) return def;
+  if (typeof v === 'number' && !Number.isFinite(v)) return def;
+  return v;
+}
+
+/**
+ * Interpreta el texto de un ajuste. Devuelve { ok: true, value } o { ok: false } si no es válido.
+ * Booleanos: true/false, 1/0, sí/no, on/off. Números: finitos y no negativos.
+ */
+export function parseSetting(key, raw) {
+  if (!isSetting(key)) return { ok: false };
+  const txt = String(raw ?? '').trim().toLowerCase();
+  if (typeof DEFAULTS[key] === 'boolean') {
+    if (['true', '1', 'si', 'sí', 'on'].includes(txt)) return { ok: true, value: true };
+    if (['false', '0', 'no', 'off'].includes(txt)) return { ok: true, value: false };
+    return { ok: false };
+  }
+  if (txt === '') return { ok: false };
+  const n = Number(txt.replace(',', '.'));
+  if (!Number.isFinite(n) || n < 0) return { ok: false };
+  return { ok: true, value: n };
 }
 
 export function setCfg(key, value) {

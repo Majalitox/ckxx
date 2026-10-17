@@ -215,9 +215,18 @@ world.afterEvents.entitySpawn.subscribe((ev) => {
   if (type === npc.NPC_TYPE) {
     system.runTimeout(() => { if (e.isValid && !npc.identOf(e)) npc.ensureIdentity(e); }, 10);
   } else if (MOBS[type]) {
-    system.runTimeout(() => { if (e.isValid) combat.setupMob(e); }, 2);
+    // Un monstruo que solo vuelve a cargarse (chunk o mundo) ya recibió su nivel al aparecer.
+    if (ev.cause === 'Loaded') return;
+    system.runTimeout(() => { try { if (e.isValid) combat.setupMob(e); } catch (err) { console.warn('[Aetheria] setupMob: ' + err); } }, 2);
   }
 });
+
+// NPC que vuelve a cargarse con restos de la justicia (alarma, caza, escolta, abucheo, ronda): la justicia lo libera.
+if (world.afterEvents.entityLoad) {
+  world.afterEvents.entityLoad.subscribe((ev) => {
+    try { justice.onEntityLoad?.(ev); } catch (e) { console.warn('[Aetheria] justice load: ' + e); }
+  });
+}
 
 system.afterEvents.scriptEventReceive.subscribe((ev) => {
   try { onScriptEvent(ev); } catch (e) { console.warn('[Aetheria] scriptevent: ' + e); }

@@ -1095,14 +1095,24 @@ const KINDS = {
     const splashMul = ctx.tier >= 3 ? 0.5 : (st.splashMul ?? 0.35);
     const homingStrength = (homingStyle || (aim.target ? 0.1 : 0)) * (ctx.enemy ? 0.4 : 1);
     const dmg = ctx.power * share;
+    const speed = (s.speed || 1.7) * (st.speedMul ?? 1);
+    // Proyectiles con gravedad (roca, agua): se lanzan en parábola hacia el objetivo para que lleguen.
+    const ballistic = (from, dir) => {
+      if (!st.gravity) return dir;
+      let to;
+      if (aim.target && valid(aim.target)) to = fx.bodyCenter(aim.target);
+      else if (ctx.enemy && ctx.targetPoint) to = ctx.targetPoint;
+      if (!to) return dir;
+      return fx.ballisticDir(from, to, speed, st.gravity, { homingStrength: aim.target ? homingStrength : 0, range }) ?? dir;
+    };
     for (let i = 0; i < count; i++) {
       const yaw = count > 1 && st.spread ? (i - (count - 1) / 2) * st.spread : 0;
       const go = () => {
         if (!valid(ctx.caster)) return;
         const from = i && st.stagger ? handOf(ctx) : ctx.hand;
-        const dir = rotateYaw(i && st.stagger && aim.target && valid(aim.target) ? norm(sub(fx.bodyCenter(aim.target) ?? aim.target.location, from)) : aim.dir, yaw);
+        const dir = rotateYaw(ballistic(from, i && st.stagger && aim.target && valid(aim.target) ? norm(sub(fx.bodyCenter(aim.target) ?? aim.target.location, from)) : aim.dir), yaw);
         fx.launch({
-          dim: ctx.dim, from, dir, speed: (s.speed || 1.7) * (st.speedMul ?? 1), range,
+          dim: ctx.dim, from, dir, speed, range,
           rgb: ctx.el.rgb, el: ctx.elId, size: (st.size ?? 0.35) + ctx.tier * 0.04, pierce: st.pierce ?? 0,
           ownerId: ctx.caster.id, filter: ctx.filter,
           homing: aim.target, homingStrength, gravity: st.gravity ?? 0,
@@ -1199,6 +1209,8 @@ const KINDS = {
       const v = flatDir(sub(e.location, c));
       if (v.x * dir.x + v.z * dir.z < 0.55) continue;
       const bc = fx.bodyCenter(e) ?? e.location;
+      // Los enemigos no maldicen a través de paredes ni suelos (jugadores a cubierto en casas o cuevas).
+      if (ctx.enemy && !fx.lineOfSight(ctx.dim, ctx.head, bc)) continue;
       fx.tendril(ctx.dim, from, bc, rgb, 0.8 + Math.random() * 0.8);
       fx.ring(ctx.dim, { x: e.location.x, y: e.location.y, z: e.location.z }, 0.8, rgb, 8);
       strike(ctx, e, ctx.power, { strong: true, statusMul: 1.6 });

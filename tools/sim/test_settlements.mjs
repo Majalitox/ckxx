@@ -117,6 +117,46 @@ function escapes(V, p, min, max) {
   }
   return false;
 }
+/**
+ * Posiciones (pies) a las que se llega andando desde `from` dentro de la caja: pasos llanos con dos
+ * bloques libres, saltos de 1 bloque sobre suelo firme (no vallas ni muros) con espacio para la
+ * cabeza, caídas y escaleras de mano. Devuelve un Set de "x,y,z".
+ */
+function walkable(V, from, box) {
+  const climb = (b) => b === 'ladder' || /vine/.test(b);
+  const tall = (b) => /fence|_wall$|iron_bars|_pane$/.test(b);
+  const free = (x, y, z) => passable(V.get(x, y, z)) && passable(V.get(x, y + 1, z));
+  const s0 = [Math.floor(from.x), Math.floor(from.y), Math.floor(from.z)];
+  const seen = new Set([s0.join()]);
+  const st = [s0];
+  while (st.length) {
+    const [x, y, z] = st.pop();
+    const next = [];
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx;
+      const nz = z + dz;
+      if (free(nx, y, nz)) {
+        let yy = y;
+        while (yy > y - 4 && !solid(V.get(nx, yy - 1, nz)) && !climb(V.get(nx, yy, nz)) && free(nx, yy - 1, nz)) yy--;
+        next.push([nx, yy, nz]);
+      } else {
+        const step = V.get(nx, y, nz);
+        if (solid(step) && !tall(step) && free(nx, y + 1, nz) && passable(V.get(x, y + 2, z))) next.push([nx, y + 1, nz]);
+      }
+    }
+    if ((climb(V.get(x, y, z)) || climb(V.get(x, y + 1, z))) && passable(V.get(x, y + 2, z))) next.push([x, y + 1, z]);
+    if (climb(V.get(x, y - 1, z))) next.push([x, y - 1, z]);
+    for (const n of next) {
+      if (n[0] < box.x1 || n[0] > box.x2 || n[2] < box.z1 || n[2] > box.z2 || n[1] < box.y1 || n[1] > box.y2) continue;
+      const k = n.join();
+      if (seen.has(k)) continue;
+      seen.add(k);
+      st.push(n);
+    }
+  }
+  return seen;
+}
+const cellKey = (p) => [Math.floor(p.x), Math.floor(p.y), Math.floor(p.z)].join();
 
 /* ---------------- Edificios: se puede entrar y las anclas son transitables ---------------- */
 {
@@ -148,6 +188,26 @@ function escapes(V, p, min, max) {
               if (!passable(b)) probs.push(`${tag} puerta y+${dy}: ${b}`);
             }
           }
+          if (inf.door && inf.doorOut) {
+            // La celda de dentro de la puerta también es transitable a la altura de la puerta (no un
+            // escalón de un bloque bajo el dintel), y desde fuera se llega andando a cada ancla.
+            const sx = Math.sign(inf.door.x - inf.doorOut.x);
+            const sz = Math.sign(inf.door.z - inf.doorOut.z);
+            if (!sx !== !sz) {
+              for (const dy of [0, 1]) {
+                const b = V.get(inf.door.x + sx, inf.door.y + dy, inf.door.z + sz);
+                if (!passable(b)) probs.push(`${tag} dentro de la puerta y+${dy}: ${b}`);
+              }
+            }
+            const a = cv.P(0, 0, 0);
+            const b = cv.P(w - 1, 0, d - 1);
+            const box = { x1: Math.min(a.x, b.x) - 3, x2: Math.max(a.x, b.x) + 3, z1: Math.min(a.z, b.z) - 3, z2: Math.max(a.z, b.z) + 3, y1: Y0 - 6, y2: Y0 + 36 };
+            const reach = walkable(V, inf.doorOut, box);
+            const goals = ['inside', 'work', 'shop', 'wp', 'court', 'throne', 'lookout'].filter((k) => inf[k]).map((k) => [k, inf[k]]);
+            for (const [i, g] of (inf.guards ?? []).entries()) goals.push(['guards[' + i + ']', g]);
+            if (inf.jail) goals.push(['cárcel.patrulla', inf.jail.patrol], ['cárcel.salida', inf.jail.exit]);
+            for (const [k, g] of goals) if (!reach.has(cellKey(g))) probs.push(`${tag} ${k} inalcanzable desde la puerta`);
+          }
           for (const k of ['inside', 'work', 'shop', 'wp', 'court', 'throne']) {
             if (!inf[k]) continue;
             const st = standable(V, inf[k]);
@@ -171,7 +231,7 @@ function escapes(V, p, min, max) {
       }
     }
   }
-  check(`edificios: puertas y anclas transitables (${built} variantes, ${jails} cárceles)`, probs.length === 0, `${probs.length}: ${probs.slice(0, process.env.ALLP ? 999 : 8).join(' | ')}`);
+  check(`edificios: se entra andando y las anclas son transitables (${built} variantes, ${jails} cárceles)`, probs.length === 0, `${probs.length}: ${probs.slice(0, process.env.ALLP ? 999 : 8).join(' | ')}`);
 }
 
 async function until(cond, max = 20000, step = 20) {
@@ -518,6 +578,9 @@ console.log('   no colocados:', JSON.stringify(Object.fromEntries(set.allSettlem
     if (s.plaza) { at('guardia.plaza.E', { x: cx + 3.5, y: s.plaza.y, z: cz + 0.5 }); at('guardia.plaza.O', { x: cx - 2.5, y: s.plaza.y, z: cz + 0.5 }); }
     at('picota', s.stocks);
     at('trono', s.throne);
+    for (const [i, q] of (s.patrol ?? []).entries()) at('patrulla' + i, q);
+    for (const [i, q] of (s.gates ?? []).entries()) at('puerta' + i, q);
+    for (const [i, q] of (s.fields ?? []).entries()) at('campo' + i, q);
     for (const sh of s.shops) { at(sh.kind + '.at', sh.at); at(sh.kind + '.wp', sh.wp); }
     for (const h of s.houses) {
       at('casa.' + h.id, h.home);
@@ -597,6 +660,18 @@ console.log('   no colocados:', JSON.stringify(Object.fromEntries(set.allSettlem
   check('rehecha: una sola población, sin duplicados', last.built && old.every((e) => !e.isValid) && ents.length === last.residents.length + last.guards.length && fids.size === ents.length, `${n0} → ${ents.length} (${last.residents.length}+${last.guards.length}), quedan ${old.filter((e) => e.isValid).length} de antes`);
   const wpsL = ow.getEntities({ type: 'rpg:waypoint', tags: ['rpg_set_' + last.id] });
   check('rehecha: marcadores sin duplicados', wpsL.length === set.waypointList(last).length, `${wpsL.length}/${set.waypointList(last).length}`);
+}
+
+/* ---------------- Bloques de obras de jugadores (criba de solares y reservas) ---------------- */
+{
+  const made = ['oak_planks', 'brick_block', 'cobblestone', 'cobbled_deepslate', 'stone_bricks', 'nether_brick', 'cut_copper', 'copper_block', 'waxed_oxidized_copper',
+    'deepslate_tiles', 'chiseled_sandstone', 'cut_sandstone', 'smooth_sandstone', 'smooth_stone', 'quartz_pillar', 'white_wool', 'glass', 'chest', 'bed', 'oak_fence',
+    'torch', 'farmland', 'grass_path', 'oak_shelf', 'glowstone', 'player_head', 'hay_block', 'white_concrete', 'polished_andesite', 'packed_mud', 'bamboo_mosaic', 'lantern'];
+  const natural = ['grass_block', 'dirt', 'stone', 'sand', 'sandstone', 'red_sandstone', 'gravel', 'oak_log', 'oak_leaves', 'copper_ore', 'deepslate_copper_ore',
+    'quartz_ore', 'smooth_basalt', 'mossy_cobblestone', 'moss_carpet', 'pale_moss_carpet', 'white_terracotta', 'hardened_clay', 'snow_layer', 'short_grass', 'poppy',
+    'mud', 'packed_ice', 'bee_nest', 'pumpkin', 'end_portal_frame', 'infested_stone', 'pointed_dripstone', 'calcite', 'tuff', 'shelf_mushroom', 'bamboo', 'water'];
+  const bad = [...made.filter((b) => !set.isPlayerMade('minecraft:' + b)).map((b) => 'no detecta ' + b), ...natural.filter((b) => set.isPlayerMade('minecraft:' + b)).map((b) => 'falso ' + b)];
+  check('isPlayerMade: obras de jugadores frente a terreno natural', bad.length === 0, bad.join(', '));
 }
 
 /* ---------------- Textos ---------------- */

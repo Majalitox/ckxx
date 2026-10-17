@@ -187,10 +187,10 @@ export const VICTIM_NOTICE = [
 export const REPORT_LINES = [
   '«¡Guardia! ¡{thief} acaba de cometer {crime}! ¡Lo he visto con mis propios ojos!»',
   '«¡Por fin le encuentro! ¡Ha sido {thief}, se lo juro!»',
-  '«¡Rápido, guardia! ¡{thief} anda suelto por ahí!»',
+  '«¡Rápido, guardia! ¡{thief} anda {suelto|suelta} por ahí!»',
 ];
 export const GUARD_ACK = [
-  '«Tranquilícese, ciudadano. Daremos con esa rata.»',
+  '«Tranquilícese, {ciudadano}. Daremos con esa rata.»', // {ciudadano}: según el testigo
   '«¿Hacia dónde ha ido? ¡Vamos!»',
   '«Ya está. Nadie escapa de la guardia.»',
   '«Bien hecho. Nosotros nos encargamos.»',
@@ -281,16 +281,17 @@ export const JAIL_FLAVOR = [
   'Un preso susurra: «Dicen que el carcelero es muy descuidado con sus llaves...»',
   'Cuentas las piedras del muro. Otra vez.',
 ];
+// {el_carcelero}, {El_carcelero}, {del_carcelero}, {al_carcelero}: ver jailerWords() (carcelero, carcelera o guardia).
 export const PATROL_START = [
-  'Se oyen pasos y el tintineo de un manojo de llaves... el carcelero hace su ronda.',
-  'El carcelero baja las escaleras silbando, con las llaves colgando del cinto.',
-  'Una antorcha se acerca por el pasillo: es la ronda del carcelero.',
+  'Se oyen pasos y el tintineo de un manojo de llaves... {el_carcelero} hace su ronda.',
+  '{El_carcelero} baja las escaleras silbando, con las llaves colgando del cinto.',
+  'Una antorcha se acerca por el pasillo: es la ronda {del_carcelero}.',
 ];
-export const PATROL_FOOD = 'El carcelero te pasa un mendrugo de pan duro entre los barrotes.';
+export const PATROL_FOOD = '{El_carcelero} te pasa un mendrugo de pan duro entre los barrotes.';
 export const KEY_HINT = '§8(Agáchate junto a los barrotes cuando el carcelero pase cerca para intentar robarle la llave.)';
 export const KEY_CAUGHT = [
-  '¡El carcelero te agarra la muñeca! «¿Buscabas esto?» Te atan las manos hasta el final de tu condena.',
-  '«¡Ja! ¿Creías que no me daría cuenta?» El carcelero te ata las manos a la espalda.',
+  '¡{El_carcelero} te agarra la muñeca! «¿Buscabas esto?» Te atan las manos hasta el final de tu condena.',
+  '«¡Ja! ¿Creías que no me daría cuenta?» {El_carcelero} te ata las manos a la espalda.',
 ];
 export const KEY_SUCCESS = '¡Tienes la llave de la celda! Úsala junto a la puerta cuando nadie mire.';
 export const JAIL_RELEASE = [
@@ -324,7 +325,7 @@ export const LOST_TRAIL = 'La guardia ha perdido tu pista. Ya no te buscan.';
 export const TOMATO_REACT = [
   '¡Oye! ¡Que esto no es la fiesta de la Tomatina!',
   '¡Mi ropa nueva!',
-  '¡Puaj! ¡Gamberro!',
+  '¡Puaj! ¡{Gamberro|Gamberra}!',
   '¿Pero qué...? ¡Qué falta de respeto!',
 ];
 
@@ -348,6 +349,22 @@ export function say(template, ctx = {}) {
   return String(template)
     .replace(/\{([^{}|]*)\|([^{}|]*)\}/g, (m, a, b) => (ctx.fem ? b : a))
     .replace(/\{(\w+)\}/g, (m, k) => (ctx[k] !== undefined ? String(ctx[k]) : m));
+}
+
+/**
+ * Cómo nombrar en las frases de la cárcel a quien hace la ronda o te pilla: "el carcelero", "la carcelera" o
+ * "el/la guardia" (si la ronda la hace un guardia). ident: su identidad (puede faltar).
+ */
+export function jailerWords(ident) {
+  const fem = ident?.gender === 'f';
+  const job = ident?.job ?? ident?.role;
+  const noun = job && job !== 'carcelero' ? 'guardia' : fem ? 'carcelera' : 'carcelero';
+  return {
+    el_carcelero: `${fem ? 'la' : 'el'} ${noun}`,
+    El_carcelero: `${fem ? 'La' : 'El'} ${noun}`,
+    del_carcelero: `${fem ? 'de la' : 'del'} ${noun}`,
+    al_carcelero: `${fem ? 'a la' : 'al'} ${noun}`,
+  };
 }
 
 /** "un hurto", "una agresión", "el asesinato de un guardia"... */

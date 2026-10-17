@@ -307,6 +307,8 @@ function between(pils) {
 }
 
 export function door(cv, u, v, id, inward = 'S', y = 0) {
+  // Las puertas de hierro no se abren a mano ni las cruzan los NPCs: se usan de madera oscura.
+  if (id === 'iron_door') id = 'dark_oak_door';
   cv.F(u, y, v, u, y + 1, v, 'air');
   cv.S(u, y, v, card(id, inward, { upper_block_bit: false }));
   cv.S(u, y + 1, v, card(id, inward, { upper_block_bit: true }));
@@ -1213,7 +1215,7 @@ export function buildJail(cv, ctx, cells = 2) {
   cv.F(w - 1, 0, 3, w - 1, 3, d - 1, hard);
   // Pasillo y mesa del carcelero
   const du = Math.floor(w / 2);
-  door(cv, du, 0, M.door === 'iron_door' ? 'iron_door' : M.door);
+  door(cv, du, 0, M.door === 'iron_door' ? 'spruce_door' : M.door);
   cv.F(1, 1, 0, 1, 2, 0, 'iron_bars');
   cv.F(w - 2, 1, 0, w - 2, 2, 0, 'iron_bars');
   cv.S(1, 0, 1, M.fence);

@@ -95,6 +95,99 @@ world._abs += 24000;
 await advance(120);
 check('misiones diarias', (d.quests?.daily?.length ?? 0) > 0);
 
+/* ---------------- Regresiones de integración (INT-1..7) ---------------- */
+const { cfg } = await import('./scripts/core/config.js');
+const crimeM = await import('./scripts/systems/crime.js');
+const prog = await import('./scripts/core/progression.js');
+const { xpNeed } = await import('./scripts/core/profile.js');
+const lastMsg = () => p._msgs.at(-1) ?? '';
+const se = (id, message = '') => system.afterEvents.scriptEventReceive.fire({ id, message, sourceEntity: p });
+
+// INT-1: un monstruo que solo se vuelve a cargar no recibe otra vez su nivel.
+const zb = ow.spawnEntity('minecraft:zombie', { x: p.location.x + 6, y: p.location.y, z: p.location.z });
+await advance(4);
+check('INT-1 monstruo nuevo con nivel', zb.getDynamicProperty('rpg:tier') !== undefined);
+zb.setDynamicProperty('rpg:tier', undefined);
+world.afterEvents.entitySpawn.fire({ entity: zb, cause: 'Loaded' });
+await advance(4);
+check('INT-1 carga de chunk no re-escala', zb.getDynamicProperty('rpg:tier') === undefined);
+zb.remove();
+
+// INT-2: NPC recargado con restos de la justicia (caza + "(!)") queda libre al cargarse.
+const gh = ow.spawnEntity('rpg:npc', { x: p.location.x + 3, y: p.location.y, z: p.location.z });
+await advance(12);
+gh.addTag('rpg_busy'); gh.addTag('rpg_hunting');
+gh.nameTag = crimeM.ALERT_PREFIX + 'Guardia';
+world.afterEvents.entityLoad.fire({ entity: gh });
+check('INT-2 entityLoad libera al NPC huérfano', !gh.hasTag('rpg_busy') && !gh.hasTag('rpg_hunting') && gh.nameTag === 'Guardia');
+gh.remove();
+
+// INT-3: no se puede renacer bajo custodia (Diario ni rpg:reset).
+d.justice = { state: 'parley', el: 0 };
+q('Opciones', 'Renacer', true);
+world.afterEvents.itemUse.fire({ source: p, itemStack: new ItemStack('rpg:journal') });
+await advance(10);
+check('INT-3 Renacer bloqueado en custodia (Diario)', store.getP(p) === d && lastMsg().includes('No puedes renacer'));
+p._msgs.length = 0;
+se('rpg:reset');
+await advance(2);
+check('INT-3 rpg:reset bloqueado en custodia', store.getP(p) === d && lastMsg().includes('No puedes renacer'));
+d.justice = undefined;
+
+// INT-4: sin HUD encima de la cinemática; se borra una vez y vuelve al terminar.
+p.addTag('rpg_cinematic');
+p._ab = 'HUD viejo';
+await advance(25);
+check('INT-4 barra borrada en cinemática', !String(p._ab).includes('HUD viejo') && !String(p._ab).includes('Nv.'));
+p.removeTag('rpg_cinematic');
+await advance(70);
+check('INT-4 HUD vuelve tras la cinemática', String(p._ab).includes('Nv.'));
+
+// INT-5: rpg:set valida y cfg ignora valores corruptos.
+se('rpg:set', 'daysToAdult');
+check('INT-5 rpg:set sin valor rechazado', cfg('daysToAdult') === 30 && lastMsg().includes('no válido'));
+se('rpg:set', 'daysToAdult 30d');
+check('INT-5 rpg:set no numérico rechazado', cfg('daysToAdult') === 30);
+se('rpg:set', 'constructor 5');
+check('INT-5 nombre heredado rechazado', lastMsg().includes('desconocido'));
+se('rpg:set', 'magicPvP sí');
+check('INT-5 booleano "sí"', cfg('magicPvP') === true);
+se('rpg:set', 'magicPvP no');
+check('INT-5 booleano "no"', cfg('magicPvP') === false);
+store.W().settings.daysToAdult = null;
+check('INT-5 null guardado = valor de serie', cfg('daysToAdult') === 30);
+store.W().settings.daysToAdult = NaN;
+check('INT-5 NaN guardado = valor de serie', cfg('daysToAdult') === 30);
+delete store.W().settings.daysToAdult;
+delete store.W().settings.magicPvP;
+
+// INT-6: la guía muestra las penas vigentes.
+const guideBody = async () => {
+  ui.shown.length = 0;
+  q('Guía del juego', undefined);
+  world.afterEvents.itemUse.fire({ source: p, itemStack: new ItemStack('rpg:journal') });
+  await advance(10);
+  return ui.shown.find((f) => String(f.title).includes('Guía'))?.body ?? '';
+};
+let gb = await guideBody();
+check('INT-6 guía con penas de serie', gb.includes('1 minuto en el cepo') && gb.includes('15 minutos de cárcel') && gb.includes('asesinato = 30 minutos'));
+store.W().settings.humiliationSeconds = 90;
+store.W().settings.jailMinutesSerious = 20;
+gb = await guideBody();
+check('INT-6 guía con penas del administrador', gb.includes('90 segundos en el cepo') && gb.includes('20 minutos de cárcel'));
+delete store.W().settings.humiliationSeconds;
+delete store.W().settings.jailMinutesSerious;
+
+// INT-7: el título de subida de nivel dice los puntos de habilidad reales.
+const lvl0 = d.level, sp0 = d.sp ?? 0;
+d.level = 4; d.xp = xpNeed(4) - 1;
+prog.addXp(p, 1, 'other', true);
+check('INT-7 nivel 5 = +2 puntos de habilidad', d.level === 5 && d.sp === sp0 + 2 && String(p._subtitle).includes('+2 puntos de habilidad'));
+d.xp = xpNeed(5) - 1;
+prog.addXp(p, 1, 'other', true);
+check('INT-7 nivel 6 = +1 punto de habilidad', d.level === 6 && String(p._subtitle).includes('+1 punto de habilidad'));
+d.level = lvl0; d.xp = 0;
+
 // Guardado
 store.flush();
 check('guardado', (p.getDynamicProperty('rpg:pd_0')?.length ?? 0) > 100);

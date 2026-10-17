@@ -26,6 +26,8 @@ const c0 = W.town.center;
 const bases = [
   { name: 'base', x1: c0.x - 2, z1: c0.z - 40, x2: c0.x + 2, z2: c0.z - 36, block: 'minecraft:oak_planks' },
   { name: 'huerto', x1: c0.x + 4, z1: c0.z - 6, x2: c0.x + 5, z2: c0.z - 5, block: 'minecraft:farmland' },
+  // Ladrillo normal (brick_block, sin «bricks» en el id) junto al camino del este
+  { name: 'casa de ladrillo', x1: c0.x + 12, z1: c0.z + 1, x2: c0.x + 14, z2: c0.z + 3, block: 'minecraft:brick_block' },
 ];
 const ow = world.getDimension('overworld');
 const DimProto = Object.getPrototypeOf(ow);

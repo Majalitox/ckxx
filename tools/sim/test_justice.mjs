@@ -35,7 +35,7 @@ const check = (name, cond, extra = '') => { console.log(`${cond ? 'OK  ' : 'FAIL
 const store = await import('./scripts/core/store.js');
 const crime = await import('./scripts/systems/crime.js');
 const justice = await import('./scripts/systems/justice.js');
-const { CRIMES, crimeWithArticle, say } = await import('./scripts/data/laws.js');
+const { CRIMES, crimeWithArticle, say, jailerWords, PATROL_START, KEY_CAUGHT, REPORT_LINES, GUARD_ACK } = await import('./scripts/data/laws.js');
 const life = await import('./scripts/systems/life.js');
 const { EYE, STAR_ON, STAR_OFF } = crime;
 
@@ -307,7 +307,7 @@ check('rondas programadas', !!pt && pt.next >= 1);
 pt.next = 1;
 await advanceSec(2);
 check('el carcelero hace su ronda', pt.left > 0 && pt.jailer?.id === G1.id && G1._events.includes('rpg:act_patrol_jail'));
-check('aviso de la ronda', p._msgs.some((m) => m.includes('carcelero')));
+check('aviso de la ronda (con quien la hace: aquí, un guardia)', p._msgs.some((m) => PATROL_START.some((t) => m.includes(say(t, jailerWords(ident(G1)))))) && !p._msgs.some((m) => m.includes('{')), p._msgs.slice(-3).join(' | '));
 G1.teleport(at(31.5, 65, 34.5));
 p.teleport(at(31.5, 65, 32.8));
 p.isSneaking = true;
@@ -690,6 +690,39 @@ const after = justice.orphanSweep();
 check('nada queda huérfano', after === 0 && !G1.hasTag('rpg_busy'), `liberados ${after} ${JSON.stringify(busyLeft)}`);
 
 /* ------------------------------------------------------------------ */
+console.log('--- 20. Textos concordados y enfados que se pasan ---');
+p.teleport(at(-30.5, 65, 20.5));
+p.isSneaking = false;
+// Robo fallido a la propia madre: no hay denuncia, y el enfado se le pasa.
+const MOM20 = npc('Clara', at(-30.5, 65, 21.5), { gender: 'f', owner: p.id, view: { x: 0, y: 0, z: 1 } });
+p.isSneaking = true;
+world.beforeEvents.playerInteractWithEntity.fire({ player: p, target: MOM20, cancel: false });
+await advance(2);
+check('robo a la familia: minijuego', games.get(p.id)?.spec.kind === 'pocket');
+check('robo a la familia fallido', await playMinigame(false));
+check('la madre se enfada pero no denuncia', MOM20.getProperty('rpg:mood') === 2 && !crime._t.alarms.has(MOM20.id) && !D.wanted && p._msgs.some((m) => m.includes('¡Hija!')));
+await advanceSec(6);
+check('y el enfado se le pasa (sin alarma)', MOM20.getProperty('rpg:mood') === 0, `mood ${MOM20.getProperty('rpg:mood')}`);
+p.isSneaking = false;
+// Alejarse a mitad del robo: aviso en femenino.
+const V20 = npc('Lucas', at(-26.5, 65, 21.5), { view: { x: 0, y: 0, z: 1 } });
+p.teleport(at(-26.5, 65, 20.5));
+p.isSneaking = true;
+world.beforeEvents.playerInteractWithEntity.fire({ player: p, target: V20, cancel: false });
+await advance(12);
+p.teleport(at(-26.5, 65, 10.5));
+await advance(2);
+check('robo cancelado por distancia, en femenino', !games.has(p.id) && p._ab.includes('pegada a tu objetivo'), JSON.stringify(p._ab));
+p.isSneaking = false;
+// Carcelera y testigos: frases concordadas.
+const INES = npc('Inés', at(-28.5, 65, 18.5), { guard: true, job: 'carcelero', gender: 'f' });
+crime.npcSay(INES, 'Nadie se escapa de mi prisión.');
+check('etiqueta de una carcelera', p._msgs[p._msgs.length - 1].includes('Carcelera Inés'), p._msgs[p._msgs.length - 1]);
+check('frases de la cárcel con carcelera', say(KEY_CAUGHT[0], jailerWords(ident(INES))).startsWith('¡La carcelera te agarra') && jailerWords(ident(INES)).al_carcelero === 'a la carcelera' && jailerWords(undefined).El_carcelero === 'El carcelero' && jailerWords(ident(G1)).el_carcelero === 'el guardia');
+check('el testigo concuerda con la ladrona y el guardia con la testigo', say(REPORT_LINES[2], { thief: 'Lia', fem: true }).includes('anda suelta') && say(GUARD_ACK[0], { ciudadano: 'ciudadana' }).includes('Tranquilícese, ciudadana.'));
+INES.remove(); MOM20.remove(); V20.remove();
+
+/* ------------------------------------------------------------------ */
 console.log('--- 15. Delitos sin ley / textos ---');
 p.teleport(at(900.5, 65, 900.5));
 const info = crime.reportCrime(p, 'hurto', {});
@@ -697,7 +730,8 @@ check('fuera de cualquier asentamiento no hay denuncia', !info.witnessed && !D.w
 check('todos los delitos tienen nombre y estrellas', Object.values(CRIMES).every((c) => c.name && c.stars.length === 3));
 check('mensajes en español sin emoji fuera del BMP', log.messages.every((m) => ![...m].some((ch) => ch.codePointAt(0) > 0xffff)));
 check('sin {masculino|femenino} sin resolver', !log.messages.some((m) => /\{[^{}]*\|[^{}]*\}/.test(m)));
-check('textos en femenino para una jugadora', !p._msgs.some((m) => /¡Ladrón!|Quieto ahí|Bienvenido a tu|Sigues expuesto|te da por muerto|¡visto!|cometer un agresión/.test(m)));
+check('sin {claves} sin rellenar', !log.messages.some((m) => /\{\w+\}/.test(m)), log.messages.find((m) => /\{\w+\}/.test(m)));
+check('textos en femenino para una jugadora', !p._msgs.some((m) => /¡Ladrón!|Quieto ahí|Bienvenido a tu|Sigues expuesto|te da por muerto|¡visto!|cometer un agresión|anda suelto|pegado a tu|entretenido demasiado|¡Gamberro!/.test(m)));
 check('artículo de cada delito', crimeWithArticle('agresion') === 'una agresión' && crimeWithArticle('hurto') === 'un hurto' && say('¡{Ladrón|Ladrona}!', { fem: true }) === '¡Ladrona!');
 
 const ptxt = justice.profileText(p);

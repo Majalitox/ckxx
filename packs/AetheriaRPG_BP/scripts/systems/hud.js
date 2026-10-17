@@ -13,9 +13,23 @@ import { theftHud } from './economy.js';
 
 export const CASTERS = new Set(['rpg:grimoire', 'rpg:staff_apprentice', 'rpg:staff_archmage']);
 
+/** Jugadores en una cinemática a los que ya se les ha borrado la barra de acción. */
+const cineCleared = new Set();
+
 export function hudTick() {
   const now = system.currentTick;
   for (const player of world.getAllPlayers()) {
+    // Cinemática (nacimiento): nada de HUD encima; se borra una vez la línea que pudiera quedar en pantalla.
+    let cine = false;
+    try { cine = player.hasTag('rpg_cinematic'); } catch {}
+    if (cine) {
+      if (!cineCleared.has(player.id)) {
+        cineCleared.add(player.id);
+        try { player.onScreenDisplay.setActionBar(' '); } catch {}
+      }
+      continue;
+    }
+    cineCleared.delete(player.id);
     const d = getP(player);
     if (!d || d.hud === false) continue;
     if (now - (actionbarLock.get(player.id) ?? -999) < 40) continue;

@@ -308,6 +308,87 @@ export function rayBlock(dim, from, dir, maxDistance) {
   }
 }
 
+/**
+ * Línea de visión entre dos puntos: true si ningún bloque sólido corta el segmento (se deja un margen
+ * al final para no contar el bloque en el que está el objetivo). Chunk sin cargar → false.
+ */
+export function lineOfSight(dim, from, to) {
+  try {
+    const v = vsub(to, from);
+    const l = vlen(v);
+    if (!(l > 0.6)) return true;
+    const hit = rayBlock(dim, from, vnorm(v), l - 0.4);
+    return hit === undefined;
+  } catch { return false; }
+}
+
+/**
+ * Dirección de lanzamiento de un proyectil con gravedad para que su trayectoria pase por `to`.
+ * Integra exactamente igual que stepProjectile (autoapuntado suave → gravedad → avance a `speed`) y busca
+ * el ángulo de elevación más bajo que llega a la altura del objetivo (bisección). Sin solución
+ * (fuera de alcance) devuelve undefined y el llamador conserva su dirección.
+ * o = { homingStrength, range }
+ */
+export function ballisticDir(from, to, speed, gravity, o = {}) {
+  try {
+    if (!(gravity > 0) || !(speed > 0)) return undefined;
+    const dx = to.x - from.x;
+    const dz = to.z - from.z;
+    const H = Math.hypot(dx, dz);
+    if (H < 1.5) return undefined;
+    const hx = dx / H;
+    const hz = dz / H;
+    const homing = Math.max(0, Math.min(1, o.homingStrength ?? 0));
+    const range = o.range ?? 64;
+    const dirFor = (pitch) => ({ x: hx * Math.cos(pitch), y: Math.sin(pitch), z: hz * Math.cos(pitch) });
+    // altura relativa al objetivo al llegar a su distancia horizontal (undefined si no llega)
+    const errAt = (pitch) => {
+      let dir = dirFor(pitch);
+      let pos = { ...from };
+      let trav = 0;
+      for (let i = 0; i < 200; i++) {
+        if (homing) {
+          const want = vnorm(vsub(to, pos));
+          if (vdot(want, dir) > 0.35) dir = vnorm(vadd(vmul(dir, 1 - homing), vmul(want, homing)));
+        }
+        dir = vnorm({ x: dir.x, y: dir.y - gravity, z: dir.z });
+        const len = Math.min(speed, range - trav);
+        if (len <= 0.01) return undefined;
+        const next = vadd(pos, vmul(dir, len));
+        const h0 = (pos.x - from.x) * hx + (pos.z - from.z) * hz;
+        const h1 = (next.x - from.x) * hx + (next.z - from.z) * hz;
+        if (h1 >= H) {
+          const t = h1 > h0 ? (H - h0) / (h1 - h0) : 1;
+          return pos.y + (next.y - pos.y) * t - to.y;
+        }
+        if (h1 <= h0) return undefined; // ya no avanza hacia el objetivo
+        pos = next;
+        trav += len;
+      }
+      return undefined;
+    };
+    const direct = Math.atan2(to.y - from.y, H);
+    const e0 = errAt(direct);
+    if (e0 !== undefined && e0 >= 0) return undefined; // la línea recta ya llega: no hace falta corregir
+    const maxPitch = Math.min(Math.PI * 0.42, direct + Math.PI * 0.4);
+    const step = Math.PI / 90; // 2°
+    let lo = direct;
+    let hi;
+    for (let a = direct + step; a <= maxPitch + 1e-9; a += step) {
+      const e = errAt(a);
+      if (e !== undefined && e >= 0) { hi = a; break; }
+      lo = a;
+    }
+    if (hi === undefined) return undefined;
+    for (let k = 0; k < 14; k++) {
+      const mid = (lo + hi) / 2;
+      const e = errAt(mid);
+      if (e !== undefined && e >= 0) hi = mid; else lo = mid;
+    }
+    return dirFor(hi);
+  } catch { return undefined; }
+}
+
 /** Alternativa a getBlockFromRay: muestrea bloques cada 0,25 a lo largo del rayo. */
 function sampleBlocks(dim, from, dir, maxDistance) {
   const n = Math.min(64, Math.ceil(maxDistance / 0.25));

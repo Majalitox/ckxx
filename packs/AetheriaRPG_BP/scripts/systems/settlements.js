@@ -6,7 +6,7 @@
 //
 // Contrato: docs/v2-contract.md §6.1 (W().settlements, W().realms).
 import { world, system } from '@minecraft/server';
-import { W, wDirty, getP, dirty } from '../core/store.js';
+import { W, wDirty, getP, dirty, flush } from '../core/store.js';
 import { cfg } from '../core/config.js';
 import { msg, title, actionbar, addGold, addKarma } from '../core/progression.js';
 import { raceOf } from '../data/races.js';
@@ -358,7 +358,9 @@ function skipGround(b) {
 
 // Bloques que no genera el terreno: obra de jugadores (o de estructuras). Donde aparecen no se
 // construye, ni se excava, ni se allana nada.
-const PLAYER_MADE = /planks|_door|trapdoor|chest|barrel|shulker_box|^minecraft:bed$|_table|furnace|smoker|glass|wool|carpet|torch|lantern|concrete|fence|_wall$|rail|bricks|polished_|smooth_stone|smooth_quartz|_slab|_stairs|bookshelf|lectern|anvil|brewing_stand|cauldron|hopper|dispenser|dropper|piston|observer|redstone_wire|redstone_lamp|repeater|comparator|lever|ladder|scaffolding|sign|banner|flower_pot|campfire|^minecraft:bell$|beacon|composter|loom|grindstone|stonecutter|jukebox|noteblock|tnt|iron_bars|hay_block|farmland|^minecraft:cobblestone$|stripped_|glazed_terracotta|_path$|iron_block|gold_block|diamond_block|emerald_block|netherite_block|lapis_block|redstone_block|coal_block|quartz_block|candle|end_rod|chain$|skull|carved_pumpkin|lit_pumpkin|decorated_pot|pressure_plate|button|target|frame$/;
+// (brick: también brick_block, el ladrillo normal; cobre, baldosas, cincelados, cortados y lisos salvo
+// los que genera el terreno: copper_ore, quartz_ore, smooth_basalt.)
+const PLAYER_MADE = /planks|_door|trapdoor|chest|barrel|shulker_box|^minecraft:bed$|_table|furnace|smoker|glass|wool|carpet|torch|lantern|concrete|fence|_wall$|rail|brick|polished_|smooth_(?!basalt)|_slab|_stairs|bookshelf|_shelf$|lectern|anvil|brewing_stand|cauldron|hopper|dispenser|dropper|piston|observer|redstone_wire|redstone_lamp|repeater|comparator|lever|ladder|scaffolding|sign|banner|flower_pot|campfire|^minecraft:bell$|beacon|composter|loom|grindstone|stonecutter|jukebox|noteblock|tnt|iron_bars|hay_block|farmland|^minecraft:cobblestone$|cobbled_deepslate|stripped_|glazed_terracotta|_path$|iron_block|gold_block|diamond_block|emerald_block|netherite_block|lapis_block|redstone_block|coal_block|quartz(?!_ore)|copper(?!_ore)|_tiles|chiseled_|cut_|packed_mud|bamboo_(block|mosaic)|resin_block|beehive|crafter|lightning_rod|glowstone|shroomlight|froglight|dried_kelp_block|honey_block|honeycomb_block|^minecraft:slime$|^minecraft:cake$|daylight_detector|lodestone|respawn_anchor|tripwire_hook|candle|end_rod|chain$|skull|_head$|carved_pumpkin|lit_pumpkin|decorated_pot|pressure_plate|button|target|frame$/;
 const NATURAL_EXCEPT = /moss_carpet|end_portal_frame/;
 export function isPlayerMade(id) {
   return !!id && PLAYER_MADE.test(id) && !NATURAL_EXCEPT.test(id);
@@ -832,10 +834,14 @@ function* planAll(s, cul, realm, H, G, plan, rng) {
   }
   // Ancla de la plaza y guardias en el empedrado libre a 3 bloques del centro, en los ejes (la fuente
   // ocupa hasta 2 bloques; picota, farolas y bancos están en las diagonales).
-  L.plaza = { x: cx + 0.5, y: py, z: cz + 3.5 };
+  // Si una obra de jugador (reserva) ocupa alguno de esos puntos, se usan los otros.
+  const axisSpots = [[0, 3], [3, 0], [-3, 0], [0, -3]].filter(([dx, dz]) => !resv(cx + dx, cz + dz));
+  if (!axisSpots.length) axisSpots.push([0, 3]);
+  const spotAt = (k) => { const [dx, dz] = axisSpots[k % axisSpots.length]; return { x: cx + dx + 0.5, y: py, z: cz + dz + 0.5 }; };
+  L.plaza = spotAt(0);
   L.plazaY = py;
   L.stocks = stocks;
-  L.guardSpots.push({ x: cx + 3.5, y: py, z: cz + 0.5 }, { x: cx - 2.5, y: py, z: cz + 0.5 });
+  L.guardSpots.push(spotAt(1), spotAt(2));
 
   /* ---------- Caminos principales ---------- */
   let dirs = ['N', 'E', 'S', 'W'];
@@ -1071,10 +1077,13 @@ function* planAll(s, cul, realm, H, G, plan, rng) {
     let px = Math.round(cx + Math.cos(ang) * dd);
     let pz = Math.round(cz + Math.sin(ang) * dd);
     let found2 = false;
-    for (let rr = 0; rr < 8 && !found2; rr++) {
-      for (let dz = -rr; dz <= rr && !found2; dz++) for (let dx = -rr; dx <= rr && !found2; dx++) {
-        const c = G.get(px + dx, pz + dz);
-        if (c === 0 || c === 1 || c === 7 || c === 4) { px += dx; pz += dz; found2 = true; }
+    // Primero suelo libre, camino o sendero; el anillo junto a los edificios (código 4), donde hay
+    // faroles, banderas y vallas de las fachadas, solo si no hay otra cosa cerca.
+    for (const ok of [new Set([0, 1, 7]), new Set([4])]) {
+      for (let rr = 0; rr < 8 && !found2; rr++) {
+        for (let dz = -rr; dz <= rr && !found2; dz++) for (let dx = -rr; dx <= rr && !found2; dx++) {
+          if (ok.has(G.get(px + dx, pz + dz))) { px += dx; pz += dz; found2 = true; }
+        }
       }
     }
     L.patrol.push({ x: px + 0.5, y: H.g(px, pz) + 1, z: pz + 0.5 });
@@ -1104,6 +1113,7 @@ function* planAll(s, cul, realm, H, G, plan, rng) {
     const x = p.x + dx;
     const z = p.z + dz;
     if (G.get(x, z) !== 0) continue;
+    if (L.patrol.some((q) => Math.floor(q.x) === x && Math.floor(q.z) === z)) continue; // punto de patrulla
     const col = H.at(x, z);
     if (col.w || col.t > col.g + 1) continue;
     G.set(x, z, 3);
@@ -1355,6 +1365,10 @@ function* buildJob(s, dim, st) {
   st.phase = 'trazado';
   const plan = new S.Plan(rng);
   const L = yield* planAll(s, cul, realm, H, G, plan, rng);
+  // Guardar ya el trazado (s.layout) y la criba de obras de jugadores (s.pmScan, s.reserved) antes del
+  // primer bloque: si el mundo se cierra a media obra, al reanudar no se tomarán los bloques recién
+  // puestos por construcciones de jugadores (se descartaría el solar o se reservarían sus edificios).
+  try { flush(); } catch (e) { warn('Guardar trazado', e); }
   st.phase = 'obras';
   st.total = plan.ops.length;
   st.done = 0;
